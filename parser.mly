@@ -1,4 +1,5 @@
 %{
+  open Types
   let group_id = ref 1
 %}
 
@@ -14,7 +15,7 @@
 /* Quantifiers */
 %token <int * int> FROMTO
 %token <int> FROM EXACTLY
-%token LAZYMAY LAZYMUST LAZYANY
+%token LAZY POSSESSIVE
 
 /* Text */
 %token <char> CHAR
@@ -25,11 +26,11 @@
 %token WORDCHAR NONWORDCHAR
 %token NEWLINE NONNEWLINE
 %token ANYCHAR
-%token BACKREF
+%token <int> BACKREF
 
 /* Entrypoint */
 %start start
-%type <AST.t> start
+%type <Types.t> start
 
 %%
 
@@ -37,16 +38,18 @@ start:
   | main_expr EOF { $1 }
 
 main_expr:
-  | main_atom quantifier           { [($1, $2)] }
-  | main_atom quantifier main_expr { ($1, $2)::$3 }
+  | main_atom qualified_quantifier           { [($1, $2)] }
+  | main_atom qualified_quantifier main_expr { ($1, $2)::$3 }
+
+qualified_quantifier:
+  | quantifier            { Greedy $1 }
+  | quantifier LAZY       { Lazy $1 }
+  | quantifier POSSESSIVE { Possessive $1 }
 
 quantifier:
-  | FROMTO   { From_to $1 }
+  | FROMTO   { let (start, stop) = $1 in From_to (start, stop) }
   | FROM     { From $1 }
   | EXACTLY  { Exactly $1 }
-  | LAZYMAY  { Lazy_may }
-  | LAZYMUST { Lazy_must }
-  | LAZYANY  { Lazy_any }
   |          { Exactly 1 }
 
 special_char:
@@ -72,23 +75,24 @@ main_atom:
   | string_atom { $1 }
   | one         { $1 }
   | group       { $1 }
+  | BACKREF     { Back_ref $1 }
 
 one:
-  | LBRACKET one_expr RBRACKET  { One_of one_expr }
-  | NLBRACKET one_expr RBRACKET { None_of one_expr }
+  | LBRACKET one_expr RBRACKET  { One_of $2 }
+  | NLBRACKET one_expr RBRACKET { None_of $2 }
 
 one_atom:
-  | string_atom                   { $1 }
-  | string_atom RANGE string_atom { Range ($1, $2) }
+  | CHAR            { Single $1 }
+  | CHAR RANGE CHAR { Range ($1, $3) }
 
 one_expr:
   | one_atom          { [$1] }
   | one_atom one_expr { $1::$2 }
 
 group:
-  | PLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead main_expr }
-  | NLOOKAHEAD main_expr RPARENTHESIS   { Negative_look_ahead main_expr }
-  | PLOOKBEHIND main_expr RPARENTHESIS  { Look_behind main_expr }
-  | NLOOKBEHIND main_expr RPARENTHESIS  { Negative_look_behind main_expr }
-  | NONCAPTURING main_expr RPARENTHESIS { No_capture main_expr }
-  | LPARENTHESIS main_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, main_expr))}
+  | PLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead $2 }
+  | NLOOKAHEAD main_expr RPARENTHESIS   { Negative_look_ahead $2 }
+  | PLOOKBEHIND main_expr RPARENTHESIS  { Look_behind $2 }
+  | NLOOKBEHIND main_expr RPARENTHESIS  { Negative_look_behind $2 }
+  | NONCAPTURING main_expr RPARENTHESIS { No_capture $2 }
+  | LPARENTHESIS main_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, $2))}

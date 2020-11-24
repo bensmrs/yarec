@@ -41,16 +41,16 @@ start:
 quantified:
   | STARTL                         { Start_of_line }
   | ENDL                           { End_of_line }
-  | main_atom qualified_quantifier { Quantified ($1, $2) }
+  | a=main_atom qq=qualified_quantifier { let qf,ql = qq in Quantified (a, qf, ql) }
 
 main_expr:
   | quantified           { [$1] }
   | quantified main_expr { $1::$2 }
 
 qualified_quantifier:
-  | quantifier            { Greedy $1 }
-  | quantifier LAZY       { Lazy $1 }
-  | quantifier POSSESSIVE { Possessive $1 }
+  | quantifier            { Greedy, $1 }
+  | quantifier LAZY       { Lazy, $1 }
+  | quantifier POSSESSIVE { Possessive, $1 }
 
 quantifier:
   | FROMTO   { let (start, stop) = $1 in From_to (start, stop) }
@@ -96,9 +96,9 @@ one_expr:
   | one_atom one_expr { $1::$2 }
 
 group:
-  | PLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead $2 }
-  | NLOOKAHEAD main_expr RPARENTHESIS   { Negative_look_ahead $2 }
-  | PLOOKBEHIND main_expr RPARENTHESIS  { Look_behind $2 }
-  | NLOOKBEHIND main_expr RPARENTHESIS  { Negative_look_behind $2 }
+  | PLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead(Positive,$2) }
+  | NLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead(Negative,$2) }
+  | PLOOKBEHIND main_expr RPARENTHESIS  { Look_behind(Positive,$2) }
+  | NLOOKBEHIND main_expr RPARENTHESIS  { Look_behind(Negative,$2) }
   | NONCAPTURING main_expr RPARENTHESIS { No_capture $2 }
   | LPARENTHESIS main_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, $2))}

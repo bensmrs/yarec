@@ -1,14 +1,14 @@
 open Lexing
 
-type t = 
-    { 
-      loc_start: position; 
-      loc_end: position; 
+type t =
+    {
+      loc_start: position;
+      loc_end: position;
     }
 
-let none = 
-  { 
-    loc_start = dummy_pos; 
+let none =
+  {
+    loc_start = dummy_pos;
     loc_end = dummy_pos;
   }
 
@@ -27,10 +27,10 @@ let init lexbuf fname =
 
 let incr_line lexbuf =
   let pos = lexbuf.lex_curr_p in
-  lexbuf.lex_curr_p <- 
-  { 
-    pos with 
-      pos_lnum = pos.pos_lnum + 1; 
+  lexbuf.lex_curr_p <-
+  {
+    pos with
+      pos_lnum = pos.pos_lnum + 1;
       pos_bol = pos.pos_cnum;
   }
 
@@ -39,6 +39,15 @@ let symbol_loc startpos endpos =
     loc_start = startpos;
     loc_end = endpos;
   }
+
+let string_of loc =
+  let debut = loc.loc_start
+  and fin = loc.loc_end in
+  "File \"" ^ debut.pos_fname ^ "\", "^
+  if (debut.pos_lnum = fin.pos_lnum) then
+      Printf.sprintf "line %i, characters %i-%i" debut.pos_lnum (debut.pos_cnum - debut.pos_bol) (fin.pos_cnum - fin.pos_bol)
+  else
+      Printf.sprintf "from line %i character %i to line %i character %i" debut.pos_lnum (debut.pos_cnum - debut.pos_bol) fin.pos_lnum (fin.pos_cnum - fin.pos_bol)
 
 let print loc =
   let debut = loc.loc_start
@@ -65,4 +74,3 @@ let print loc =
       print_int (fin.pos_cnum - fin.pos_bol)
     end;
   print_endline ":"
-

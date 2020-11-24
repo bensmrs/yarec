@@ -28,7 +28,7 @@ let hexdigit = digit | ['a'-'f''A'-'F']
 
 rule token flags = parse
   | eof { EOF }
-  | _   { rewind lexbuf 1; if !global_state = Verbatim then verbatim flags lexbuf else default flags lexbuf }
+  | _   { Util.rewind lexbuf 1; if !global_state = Verbatim then verbatim flags lexbuf else default flags lexbuf }
 
 and default flags = parse
   | '[' '^'                                   { init_verbatim (); NLBRACKET }
@@ -38,7 +38,7 @@ and default flags = parse
   | '(' '?' '<' '='                           { PLOOKBEHIND }
   | '(' '?' '<' '!'                           { NLOOKBEHIND }
   | '(' '?' ':'                               { NONCAPTURING }
-  | '(' '?' '#'                               { comment (Location.curr lexbuf) lexbuf; default lexbuf }
+  | '(' '?' '#'                               { comment (Location.curr lexbuf) lexbuf; default flags lexbuf }
   | '('                                       { LPARENTHESIS }
   | ')'                                       { RPARENTHESIS }
   | '{' (digit+ as s1) ',' (digit+ as s2) '}' { global_state := Quantifying; FROMTO (int_of_string s1, int_of_string s2) }
@@ -49,11 +49,13 @@ and default flags = parse
   | '*'                                       { global_state := Quantifying; FROM 0 }
   | '\\'                                      { special lexbuf }
   | '.'                                       { if Flags.has `DOTALL flags then ANYCHAR else NONNEWLINE }
+  | '^'                                       { STARTL }
+  | '$'                                       { ENDL }
   | _ as c                                    { CHAR c }
 
 and verbatim flags = parse
-  | '-' ']' { rewind lexbuf 1; CHAR '-' }
-  | ']'     { if verbatim_has_started () then (global_state := Default; RBRACKET) else CHAR ']' }
+  | '-' ']' { Util.rewind lexbuf 1; (char_step (); CHAR '-') }
+  | ']'     { if verbatim_has_started () then (global_state := Default; RBRACKET) else (char_step (); CHAR ']') }
   | '\\'    { special lexbuf }
   | '-'     { if range_is_char () then CHAR '-' else RANGE }
   | _ as c  { char_step (); CHAR c }

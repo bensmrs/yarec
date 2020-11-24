@@ -20,4 +20,9 @@ type main_atom_t = Special of string
                  | No_capture of t
                  | Capture of int * t
                  | Back_ref of int
-and t = (main_atom_t * qualified_quantifier_t) list
+
+and quantified_t = Quantified of main_atom_t * qualified_quantifier_t
+                 | Start_of_line
+                 | End_of_line
+
+and t = quantified_t list

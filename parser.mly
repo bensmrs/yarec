@@ -26,6 +26,7 @@
 %token WORDCHAR NONWORDCHAR
 %token NEWLINE NONNEWLINE
 %token ANYCHAR
+%token STARTL ENDL
 %token <int> BACKREF
 
 /* Entrypoint */
@@ -37,9 +38,14 @@
 start:
   | main_expr EOF { $1 }
 
+quantified:
+  | STARTL                         { Start_of_line }
+  | ENDL                           { End_of_line }
+  | main_atom qualified_quantifier { Quantified ($1, $2) }
+
 main_expr:
-  | main_atom qualified_quantifier           { [($1, $2)] }
-  | main_atom qualified_quantifier main_expr { ($1, $2)::$3 }
+  | quantified           { [$1] }
+  | quantified main_expr { $1::$2 }
 
 qualified_quantifier:
   | quantifier            { Greedy $1 }

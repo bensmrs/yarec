@@ -2,23 +2,6 @@
   open Exceptions
   open Parser
 
-  let special_char c =
-    special_step lexbuf;
-    match c with
-    | 'h' -> HSPACE
-    | 'H' -> NONHSPACE
-    | 'v' -> VSPACE
-    | 'V' -> NONVSPACE
-    | 's' -> WHITESPACE
-    | 'S' -> NONWHITESPACE
-    | 'd' -> DIGIT
-    | 'D' -> NONDIGIT
-    | 'w' -> WORDCHAR
-    | 'W' -> NONWORDCHAR
-    | 'X' | 'C' -> ANYCHAR
-    | 'R' -> NEWLINE
-    | _ -> failwith(Printf.sprintf "special_char called with '%c'" c)
-
   type lexer_state = Default | Quantifying | Verbatim
   let global_state = ref Default
   let range_state = ref 3
@@ -38,6 +21,24 @@
   let dash_step () = range_state := (!range_state + 1) mod 3
   let range_is_char () = !range_state != 2
   let verbatim_has_started () = !range_state != 3
+
+  let special_char lexbuf c =
+    special_step lexbuf;
+    match c with
+    | 'h' -> HSPACE
+    | 'H' -> NONHSPACE
+    | 'v' -> VSPACE
+    | 'V' -> NONVSPACE
+    | 's' -> WHITESPACE
+    | 'S' -> NONWHITESPACE
+    | 'd' -> DIGIT
+    | 'D' -> NONDIGIT
+    | 'w' -> WORDCHAR
+    | 'W' -> NONWORDCHAR
+    | 'X' | 'C' -> ANYCHAR
+    | 'R' -> NEWLINE
+    | _ -> failwith(Printf.sprintf "special_char called with '%c'" c)
+
 }
 
 let digit = ['0'-'9']
@@ -80,7 +81,7 @@ and verbatim flags = parse
 
 and special = parse
   (*           { Special rule } { Character rule } *)
-  | special_chars as c          { special_char c }
+  | special_chars as c          { special_char lexbuf c }
   | 'x' hexdigit hexdigit as s  { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
   | digit digit digit as s      { char_step (); CHAR (Char.chr (int_of_string s)) }
   | '0'                         { char_step (); CHAR (Char.chr 0) }
@@ -91,7 +92,7 @@ and special = parse
   | 'n'                         { char_step (); CHAR '\n' }
   | 'r'                         { char_step (); CHAR '\r' }
   | 't'                         { char_step (); CHAR '\t' }
-  | _ as c                      { char_step (); CHAR c }
+  | c                           { char_step (); CHAR c }
 
 and comment start_loc = parse
   | ")" { () }

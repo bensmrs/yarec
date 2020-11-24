@@ -2,10 +2,10 @@
  (name yarec)
  (modules Lexer Parser Exceptions Flags Location Types Util))
 
-(executable
- (name yarec)
+(executables
+ (names yarec_stdin main)
  (libraries yarec)
- (modules Yarec))
+ (modules Yarec_stdin Main))
 
 (ocamllex lexer)
 

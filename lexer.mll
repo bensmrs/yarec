@@ -15,7 +15,7 @@
   let special_step lexbuf = range_state :=
     begin
       match !range_state with
-      | 2 -> raise (Illegal_state { desc = "A range cannot be created with a shorthand escape sequence"; loc = Location.curr lexbuf })
+      | 2 -> illegal_state "A range cannot be created with a shorthand escape sequence" (Location.curr lexbuf)
       | _ -> 0
     end
   let dash_step () = range_state := (!range_state + 1) mod 3
@@ -96,5 +96,5 @@ and special = parse
 
 and comment start_loc = parse
   | ")" { () }
-  | eof { raise (Illegal_state { desc = "Unmatched comment start"; loc = start_loc }) }
+  | eof { illegal_state "Unmatched comment start" start_loc }
   | _   { comment start_loc lexbuf }

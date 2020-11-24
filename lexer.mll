@@ -92,7 +92,9 @@ and special = parse
   | 'n'                         { char_step (); CHAR '\n' }
   | 'r'                         { char_step (); CHAR '\r' }
   | 't'                         { char_step (); CHAR '\t' }
-  | c                           { char_step (); CHAR c }
+  (* Non alphanumeric symbols *)
+  | '\\' ([^'0'-'9''A'-'Z''a'-'z'] as c)          { char_step (); CHAR c }
+  | _ as c                      { illegal_state (Printf.sprintf "Unknown character '%c'" c) (Location.curr lexbuf) }
 
 and comment start_loc = parse
   | ")" { () }

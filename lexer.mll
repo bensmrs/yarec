@@ -2,6 +2,23 @@
   open Exceptions
   open Parser
 
+  let special_char c =
+    special_step lexbuf;
+    match c with
+    | 'h' -> HSPACE
+    | 'H' -> NONHSPACE
+    | 'v' -> VSPACE
+    | 'V' -> NONVSPACE
+    | 's' -> WHITESPACE
+    | 'S' -> NONWHITESPACE
+    | 'd' -> DIGIT
+    | 'D' -> NONDIGIT
+    | 'w' -> WORDCHAR
+    | 'W' -> NONWORDCHAR
+    | 'X' | 'C' -> ANYCHAR
+    | 'R' -> NEWLINE
+    | _ -> failwith(Printf.sprintf "special_char called with '%c'" c)
+
   type lexer_state = Default | Quantifying | Verbatim
   let global_state = ref Default
   let range_state = ref 3
@@ -25,6 +42,7 @@
 
 let digit = ['0'-'9']
 let hexdigit = digit | ['a'-'f''A'-'F']
+let special_chars = ['h''H''v''V''s''S''d''D''w''W''X''C''R']
 
 rule token flags = parse
   | eof { EOF }
@@ -62,18 +80,7 @@ and verbatim flags = parse
 
 and special = parse
   (*           { Special rule } { Character rule } *)
-  | 'h'        { special_step lexbuf; HSPACE }
-  | 'H'        { special_step lexbuf; NONHSPACE }
-  | 'v'        { special_step lexbuf; VSPACE }
-  | 'V'        { special_step lexbuf; NONVSPACE }
-  | 's'        { special_step lexbuf; WHITESPACE }
-  | 'S'        { special_step lexbuf; NONWHITESPACE }
-  | 'd'        { special_step lexbuf; DIGIT }
-  | 'D'        { special_step lexbuf; NONDIGIT }
-  | 'w'        { special_step lexbuf; WORDCHAR }
-  | 'W'        { special_step lexbuf; NONWORDCHAR }
-  | 'X' | 'C'  { special_step lexbuf; ANYCHAR }
-  | 'R'        { special_step lexbuf; NEWLINE }
+  | special_chars as c          { special_char c }
   | 'x' hexdigit hexdigit as s  { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
   | digit digit digit as s      { char_step (); CHAR (Char.chr (int_of_string s)) }
   | '0'                         { char_step (); CHAR (Char.chr 0) }

@@ -1,0 +1,14 @@
+(library
+ (name yarec)
+ (modules Lexer Parser Exceptions Flags Location Types Util))
+
+(executable
+ (name yarec)
+ (libraries yarec)
+ (modules Yarec))
+
+(ocamllex lexer)
+
+(menhir
+ (modules parser)
+ (flags --explain))

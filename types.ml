@@ -6,7 +6,8 @@ type qualified_quantifier_t = Greedy of quantifier_t
                             | Lazy of quantifier_t
                             | Possessive of quantifier_t
 
-type one_atom_t = Single of char
+type one_atom_t = Shorthand of string
+                | Single of char
                 | Range of char * char
 
 type main_atom_t = Special of string

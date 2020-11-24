@@ -59,23 +59,23 @@ quantifier:
   |          { Exactly 1 }
 
 special_char:
-  | HSPACE        { Special "hspace" }
-  | NONHSPACE     { Special "nonhspace" }
-  | VSPACE        { Special "vspace" }
-  | NONVSPACE     { Special "nonvspace" }
-  | WHITESPACE    { Special "whitespace" }
-  | NONWHITESPACE { Special "nonwhitespace" }
-  | DIGIT         { Special "digit" }
-  | NONDIGIT      { Special "nondigit" }
-  | WORDCHAR      { Special "wordchar" }
-  | NONWORDCHAR   { Special "nonwordchar" }
-  | NEWLINE       { Special "newline" }
-  | NONNEWLINE    { Special "nonnewline" }
-  | ANYCHAR       { Special "_" }
+  | HSPACE        { "hspace" }
+  | NONHSPACE     { "nonhspace" }
+  | VSPACE        { "vspace" }
+  | NONVSPACE     { "nonvspace" }
+  | WHITESPACE    { "whitespace" }
+  | NONWHITESPACE { "nonwhitespace" }
+  | DIGIT         { "digit" }
+  | NONDIGIT      { "nondigit" }
+  | WORDCHAR      { "wordchar" }
+  | NONWORDCHAR   { "nonwordchar" }
+  | NEWLINE       { "newline" }
+  | NONNEWLINE    { "nonnewline" }
+  | ANYCHAR       { "_" }
 
 string_atom:
   | CHAR         { Regular $1 }
-  | special_char { $1 }
+  | special_char { Special $1 }
 
 main_atom:
   | string_atom { $1 }
@@ -89,6 +89,7 @@ one:
 
 one_atom:
   | CHAR            { Single $1 }
+  | special_char    { Shorthand $1 }
   | CHAR RANGE CHAR { Range ($1, $3) }
 
 one_expr:

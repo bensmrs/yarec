@@ -61,7 +61,7 @@ and verbatim flags = parse
   | _ as c  { char_step (); CHAR c }
 
 and special = parse
-  (*           { Special rule } { Character rule } *)
+  (*           { Special rule }  { Character rule } *)
   | 'h'        { special_step lexbuf; HSPACE }
   | 'H'        { special_step lexbuf; NONHSPACE }
   | 'v'        { special_step lexbuf; VSPACE }
@@ -74,17 +74,17 @@ and special = parse
   | 'W'        { special_step lexbuf; NONWORDCHAR }
   | 'X' | 'C'  { special_step lexbuf; ANYCHAR }
   | 'R'        { special_step lexbuf; NEWLINE }
-  | 'x' hexdigit hexdigit as s  { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
-  | digit digit digit as s      { char_step (); CHAR (Char.chr (int_of_string s)) }
-  | '0'                         { char_step (); CHAR (Char.chr 0) }
+  | 'x' (hexdigit hexdigit as s) { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
+  | digit digit digit as s       { char_step (); CHAR (Char.chr (int_of_string s)) }
+  | '0'                          { char_step (); CHAR (Char.chr 0) }
   | digit as c { special_step lexbuf; BACKREF (int_of_string (String.make 1 c)) }
-  | 'a'                         { char_step (); CHAR (Char.chr 7) }
-  | 'b'                         { char_step (); CHAR '\b' }
-  | 'f'                         { char_step (); CHAR (Char.chr 12) }
-  | 'n'                         { char_step (); CHAR '\n' }
-  | 'r'                         { char_step (); CHAR '\r' }
-  | 't'                         { char_step (); CHAR '\t' }
-  | _ as c                      { char_step (); CHAR c }
+  | 'a'                          { char_step (); CHAR (Char.chr 7) }
+  | 'b'                          { char_step (); CHAR '\b' }
+  | 'f'                          { char_step (); CHAR (Char.chr 12) }
+  | 'n'                          { char_step (); CHAR '\n' }
+  | 'r'                          { char_step (); CHAR '\r' }
+  | 't'                          { char_step (); CHAR '\t' }
+  | _ as c                       { char_step (); CHAR c }
 
 and comment start_loc = parse
   | ")" { () }

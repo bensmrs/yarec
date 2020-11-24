@@ -82,7 +82,7 @@ and verbatim flags = parse
 and special = parse
   (*           { Special rule } { Character rule } *)
   | special_chars as c          { special_char lexbuf c }
-  | 'x' hexdigit hexdigit as s  { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
+  | 'x' (hexdigit hexdigit as s)  { char_step (); CHAR (Char.chr (Scanf.sscanf s "%x" (fun x -> x))) }
   | digit digit digit as s      { char_step (); CHAR (Char.chr (int_of_string s)) }
   | '0'                         { char_step (); CHAR (Char.chr 0) }
   | digit as c { special_step lexbuf; BACKREF (int_of_string (String.make 1 c)) }

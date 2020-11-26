@@ -58,7 +58,7 @@ and verbatim flags = parse
   | '-' ']' { Util.rewind lexbuf 1; (char_step (); CHAR '-') }
   | ']'     { if verbatim_has_started () then (global_state := Default; RBRACKET) else (char_step (); CHAR ']') }
   | '\\'    { special lexbuf }
-  | '-'     { if range_is_char () then CHAR '-' else RANGE }
+  | '-'     { dash_step (); if range_is_char () then CHAR '-' else RANGE }
   | _ as c  { char_step (); CHAR c }
 
 and special = parse

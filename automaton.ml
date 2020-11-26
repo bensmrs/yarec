@@ -9,10 +9,10 @@ module Make (E : sig
                  data: (string, data) Hashtbl.t }
   type automaton_state = int * (state -> state)
   type transition_item = E.t option
-  type t = { initial: int;
+  type t = { initial: int list;
              final: int list;
              states: automaton_state list;
-             transitions: (transition_item, int) Hashtbl.t list }
+             transitions: (transition_item * int) list list }
 
   let next_available_state automaton = List.length automaton.states
 
@@ -22,11 +22,11 @@ module Make (E : sig
   let add_state ?(f=fun x -> x) ?(initial=false) ?(final=false) automaton =
     let id = next_available_state automaton in
     let state = (id, f) in
-    let transition = Hashtbl.create 2 in
-    { initial = (if initial then id else automaton.initial);
-      final = (if final then id::automaton.final else automaton.final);
-      states = automaton.states @ [state];
-      transitions = automaton.transitions @ [transition] }
+    let transition = [] in
+    ({ initial = (if initial then id::automaton.initial else automaton.initial);
+       final = (if final then id::automaton.final else automaton.final);
+       states = automaton.states @ [state];
+       transitions = automaton.transitions @ [transition] }, id)
 
   let add_transition automaton item start stop =
     let rec take l n = match l, n with
@@ -37,10 +37,9 @@ module Make (E : sig
       | hd::tl, i when i > 0 -> take tl (i-1)
       | hd::tl, _            -> tl
       | [], _                -> [] in
-    let h = Hashtbl.copy (List.nth automaton.transitions start) in
-    Hashtbl.add h item stop;
     { automaton with transitions = (take automaton.transitions (start-1))@
-                                   h::(drop automaton.transitions start) }
+                                   ((item, stop)::List.nth automaton.transitions start)::
+                                   (drop automaton.transitions start) }
 
   let reachable_states automaton state symbol =
     let rec find_reachable symbol = function
@@ -49,7 +48,7 @@ module Make (E : sig
       | []                                  -> [] in
     let transitions = List.nth automaton.transitions state.id in
     List.map (fun i -> List.nth automaton.states i)
-             (find_reachable symbol (List.of_seq (Hashtbl.to_seq transitions)))
+             (find_reachable symbol (transitions))
 
   let next automaton state symbol =
     List.map (fun x -> { (transformation_of_state x state) with id = id_of_state x })
@@ -59,7 +58,7 @@ module Make (E : sig
     | hd::tl -> next automaton hd symbol @ next_of_list automaton tl symbol
     | []     -> []
 
-  let empty = { initial = -1;
+  let empty = { initial = [];
                 final = [];
                 states = [];
                 transitions = [] }

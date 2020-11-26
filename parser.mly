@@ -89,8 +89,8 @@ main_atom:
   | BACKREF     { Back_ref $1 }
 
 one:
-  | LBRACKET one_expr RBRACKET  { One_of (simplify_one_expr $2) }
-  | NLBRACKET one_expr RBRACKET { None_of (simplify_one_expr $2) }
+  | LBRACKET one_expr RBRACKET  { One_of ($2) }
+  | NLBRACKET one_expr RBRACKET { None_of ($2) }
 
 one_atom:
   | CHAR            { Single $1 }

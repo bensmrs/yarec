@@ -51,6 +51,7 @@ and default flags = parse
   | '.'                                       { if Flags.has `DOTALL flags then ANYCHAR else NONNEWLINE }
   | '^'                                       { STARTL }
   | '$'                                       { ENDL }
+  | '|'                                       { OR }
   | _ as c                                    { CHAR c }
 
 and verbatim flags = parse

@@ -7,6 +7,7 @@
 
 /* Operator */
 %token RANGE
+%token OR
 
 /* Pairs */
 %token NLBRACKET LBRACKET RBRACKET
@@ -36,7 +37,7 @@
 %%
 
 start:
-  | main_expr EOF { $1 }
+  | top_expr EOF { $1 }
 
 quantified:
   | STARTL                         { Start_of_line }
@@ -46,6 +47,10 @@ quantified:
 main_expr:
   | quantified           { [$1] }
   | quantified main_expr { $1::$2 }
+
+top_expr:
+  | main_expr             { Expr $1 }
+  | main_expr OR top_expr { Either ($1, $3) }
 
 qualified_quantifier:
   | quantifier            { Greedy $1 }
@@ -59,19 +64,19 @@ quantifier:
   |          { Exactly 1 }
 
 special_char:
-  | HSPACE        { "hspace" }
-  | NONHSPACE     { "nonhspace" }
-  | VSPACE        { "vspace" }
-  | NONVSPACE     { "nonvspace" }
-  | WHITESPACE    { "whitespace" }
-  | NONWHITESPACE { "nonwhitespace" }
-  | DIGIT         { "digit" }
-  | NONDIGIT      { "nondigit" }
-  | WORDCHAR      { "wordchar" }
-  | NONWORDCHAR   { "nonwordchar" }
-  | NEWLINE       { "newline" }
-  | NONNEWLINE    { "nonnewline" }
-  | ANYCHAR       { "_" }
+  | HSPACE        { H_space }
+  | NONHSPACE     { Non_h_space }
+  | VSPACE        { V_space }
+  | NONVSPACE     { Non_v_space }
+  | WHITESPACE    { White_space }
+  | NONWHITESPACE { Non_white_space }
+  | DIGIT         { Digit }
+  | NONDIGIT      { Non_digit }
+  | WORDCHAR      { Word_char }
+  | NONWORDCHAR   { Non_word_char }
+  | NEWLINE       { New_line }
+  | NONNEWLINE    { Non_new_line }
+  | ANYCHAR       { Any_char }
 
 string_atom:
   | CHAR         { Regular $1 }
@@ -84,8 +89,8 @@ main_atom:
   | BACKREF     { Back_ref $1 }
 
 one:
-  | LBRACKET one_expr RBRACKET  { One_of $2 }
-  | NLBRACKET one_expr RBRACKET { None_of $2 }
+  | LBRACKET one_expr RBRACKET  { One_of (simplify_one_expr $2) }
+  | NLBRACKET one_expr RBRACKET { None_of (simplify_one_expr $2) }
 
 one_atom:
   | CHAR            { Single $1 }
@@ -97,9 +102,9 @@ one_expr:
   | one_atom one_expr { $1::$2 }
 
 group:
-  | PLOOKAHEAD main_expr RPARENTHESIS   { Look_ahead $2 }
-  | NLOOKAHEAD main_expr RPARENTHESIS   { Negative_look_ahead $2 }
-  | PLOOKBEHIND main_expr RPARENTHESIS  { Look_behind $2 }
-  | NLOOKBEHIND main_expr RPARENTHESIS  { Negative_look_behind $2 }
-  | NONCAPTURING main_expr RPARENTHESIS { No_capture $2 }
-  | LPARENTHESIS main_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, $2))}
+  | PLOOKAHEAD top_expr RPARENTHESIS   { Look_ahead $2 }
+  | NLOOKAHEAD top_expr RPARENTHESIS   { Negative_look_ahead $2 }
+  | PLOOKBEHIND top_expr RPARENTHESIS  { Look_behind $2 }
+  | NLOOKBEHIND top_expr RPARENTHESIS  { Negative_look_behind $2 }
+  | NONCAPTURING top_expr RPARENTHESIS { No_capture $2 }
+  | LPARENTHESIS top_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, $2))}

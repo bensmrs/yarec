@@ -87,7 +87,7 @@ module Make (E : sig
               -> minus_ranges r tl acc
       | [], _ -> List.rev acc
       | _, [] -> List.rev_append acc r
-      | _, _  -> failwith "0Unreachable branch" in
+      | _, _  -> failwith "Unreachable branch" in
     let rec minus_cross s r acc = match s, r with
       | Single e as hd::tl, Range (start, _)::_ when E.compare start e > 0
               -> minus_cross tl r (hd::acc)
@@ -97,7 +97,7 @@ module Make (E : sig
               -> minus_cross s tl acc
       | [], _ -> List.rev acc
       | _, [] -> List.rev_append acc s
-      | _, _  -> failwith "1Unreachable branch" in
+      | _, _  -> failwith "Unreachable branch" in
     let rec minus_cross' r s acc = match r, s with
       | Range (start, _)::_, Single e::tl when E.compare start e > 0
               -> minus_cross' r tl acc
@@ -111,14 +111,14 @@ module Make (E : sig
               -> minus_cross' tl s (hd::acc)
       | [], _ -> List.rev acc
       | _, [] -> List.rev_append acc r
-      | _, _  -> failwith "2Unreachable branch" in
+      | _, _  -> failwith "Unreachable branch" in
     let rec minus_singles s s' acc = match s, s' with
       | Single e::_, Single e'::tl when E.compare e e' > 0       -> minus_singles s tl acc
       | Single e::tl, Single e'::tl' when E.compare e e' = 0     -> minus_singles tl tl' acc
       | Single e as hd::tl, Single e'::_ when E.compare e' e > 0 -> minus_singles tl s' (hd::acc)
       | [], _                                                    -> List.rev acc
       | _, []                                                    -> List.rev_append acc s
-      | _, _  -> failwith "3Unreachable branch" in
+      | _, _  -> failwith "Unreachable branch" in
     let (r, s) = (minus_ranges r r' [], minus_cross s r' []) in
     let (r, s) = (minus_cross' r s' [], minus_singles s s' []) in
     simplify (r, s)

@@ -4,10 +4,11 @@ module Make (E : sig
                    val mem : elt -> t -> bool
                  end) = struct
 
-  type data = Stack of data Stack.t | String of string
+  type data = Stack of data Stack.t | Tag of string
   type state = { id: int;
                  data: (string, data) Hashtbl.t }
-  type automaton_state = int * (state -> state)
+  type runtime_state = state * int
+  type automaton_state = (runtime_state -> runtime_state)
   type transition_item = E.t option
   type t = { initial: int list;
              final: int list;
@@ -20,6 +21,11 @@ module Make (E : sig
                 states = [];
                 transitions = [] }
 
+  let empty_state = { id = 0;
+                      data = Hashtbl.create 4 }
+
+  let rstate_of_id id = ({ empty_state with id }, 0)
+
   let next_available_state automaton = List.length automaton.states
 
   let id_of_state (i, _) = i
@@ -27,10 +33,9 @@ module Make (E : sig
 
   let add_state ?(f=fun x->x) ?(initial=false) ?(final=false) automaton =
     let id = next_available_state automaton in
-    let state = (id, f) in
     ({ initial = (if initial then id::automaton.initial else automaton.initial);
        final = (if final then id::automaton.final else automaton.final);
-       states = automaton.states @ [state];
+       states = automaton.states @ [f];
        transitions = automaton.transitions @ [[]] }, id)
 
   let rec take l n = match l, n with
@@ -49,7 +54,7 @@ module Make (E : sig
 
   let of_transition ?(f=fun x -> x) item =
     let (automaton, id) = add_state empty in
-    let (automaton, id') = add_state ~f:f automaton in
+    let (automaton, id') = add_state ~f automaton in
     let automaton = add_transition automaton id id' item in
     { automaton with initial = [id]; final = [id'] }
 
@@ -66,16 +71,16 @@ module Make (E : sig
     let state' = List.sort compare (if state' = [] then automaton'.initial else state') in
     let trans = Hashtbl.create (next_available_state automaton') in
     ignore (List.map (fun s -> List.map (fun s' -> Hashtbl.add trans s' s) state') state);
-    let rec merge_states automaton = function
-      | (id, _)::tl when List.mem id state'
-           -> merge_states automaton tl
-      | (id, f)::tl
+    let rec merge_states automaton ?(n=0) states = match n, states with
+      | id, _::tl when List.mem id state'
+           -> merge_states automaton ~n:(n+1) tl
+      | id, f::tl
            -> let id' = next_available_state automaton in
                         (Hashtbl.add trans id id';
-                         merge_states { automaton with states = automaton.states @ [(id', f)];
+                         merge_states { automaton with states = automaton.states @ [f];
                                                        transitions = automaton.transitions @ [[]] }
-                                      tl)
-      | [] -> automaton in
+                                      ~n:(n+1) tl)
+      | _, [] -> automaton in
     let rec merge_transitions automaton ?(n=0) transitions =
       let rec update_transition = function
         | (item, id)::tl -> (item, Hashtbl.find trans id)::(update_transition tl)
@@ -92,7 +97,7 @@ module Make (E : sig
                 (List.map (fun x -> Hashtbl.find trans x) automaton'.final), trans)
 
   let link_ignore ?(state=([])) ?(state'=([])) automaton automaton' =
-    let (a, _) = link ~state:state ~state':state' automaton automaton' in a
+    let (a, _) = link ~state ~state' automaton automaton' in a
 
   let get_ends automaton initial final =
     let initial = if initial = -1 then match automaton.initial with
@@ -124,22 +129,22 @@ module Make (E : sig
 
   let repeat_bypass automaton ?(initial=(-1)) ?(final=(-1)) ?(f=fun x -> x) n =
     let (initial, final) = get_ends automaton initial final in
-    let (acc, id) = add_state ~f:f automaton in
+    let (acc, id) = add_state ~f automaton in
     let acc = add_transition acc initial id None in
     let rec repeat_bypass_in acc final' n = match n with
       | 1            -> acc
       | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
-      | _            -> let (acc, trans) = link ~state: [final'] ~state': [initial] acc automaton in
+      | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
                         let acc = add_transition acc (Hashtbl.find trans initial) id None in
                         repeat_bypass_in acc final' (n-1) in
     repeat_bypass_in acc final n
 
   let loop ?(initial=(-1)) ?(final=(-1)) automaton =
     let (initial, final) = get_ends automaton initial final in
-    { (chain ~initial:initial ~final:final automaton) with final = automaton.initial }
+    { (chain ~initial ~final automaton) with final = automaton.initial }
 
   let add_state_from ?(f=fun x -> x) automaton state item =
-    let (automaton, id) = add_state ~f:f automaton in
+    let (automaton, id) = add_state ~f automaton in
     (add_transition automaton state id item, id)
 
   let rec add_states_from ?(f=[]) automaton state items = match f, items with
@@ -149,20 +154,33 @@ module Make (E : sig
     | hd::tl, hd'::tl' -> let (automaton, state) = add_state_from ~f:hd automaton state hd' in
                           add_states_from ~f:tl automaton state tl'
 
-  let reachable_states automaton state symbol =
-    let rec find_reachable symbol = function
-      | (Some r, s)::tl when E.mem symbol r -> s::find_reachable symbol tl
-      | _::tl                               -> find_reachable symbol tl
-      | []                                  -> [] in
+  let next automaton (state, cursor) buf =
+    let rec find_reachable = function
+      | (None, s)::tl   -> (s, cursor)::find_reachable tl
+      | (Some r, s)::tl -> if cursor >= List.length buf || not (E.mem (List.nth buf cursor) r)
+                           then find_reachable tl
+                           else (s, cursor+1)::find_reachable tl
+      | []              -> [] in
     let transitions = List.nth automaton.transitions state.id in
-    List.map (fun i -> List.nth automaton.states i)
-             (find_reachable symbol (transitions))
+    List.map (fun (id, c) -> (List.nth automaton.states id) ({ state with id }, c))
+             (find_reachable transitions)
 
-  let next automaton state symbol =
-    List.map (fun x -> { (transformation_of_state x state) with id = id_of_state x })
-             (reachable_states automaton state symbol)
-
-  let rec next_of_list automaton states symbol = match states with
-    | hd::tl -> next automaton hd symbol @ next_of_list automaton tl symbol
+  let rec next_of_list automaton rstates buf = match rstates with
+    | hd::tl -> next automaton hd buf @ next_of_list automaton tl buf
     | []     -> []
+
+  let is_final automaton (state, cursor) buf =
+    cursor = List.length buf && List.mem state.id automaton.final
+
+  let step automaton rstates buf =
+    let next_rstates = next_of_list automaton rstates buf in
+    (next_rstates, List.filter (fun rs -> is_final automaton rs buf) next_rstates)
+
+  let check automaton buf =
+    let rec check_rec = function
+      | hd::tl, [] -> check_rec (step automaton (hd::tl) buf)
+      | [], []     -> false
+      | _, _       -> true in
+    let rstates = List.map rstate_of_id automaton.initial in
+    check_rec (rstates, [])
 end

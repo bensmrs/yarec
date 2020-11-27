@@ -30,14 +30,15 @@ let atom_to_drange = function
   | Single c            -> Char_range.of_list [Single c]
   | Range (start, stop) -> Char_range.of_list [Range (start, stop)]
 
-let rec of_ast ast =
-  let rec ast_to_list = function
+let rec of_top_expr expr =
+  let rec top_expr_to_list = function
     | Expr e         -> [e]
-    | Either (e, e') -> e::(ast_to_list e') in
-  match ast_to_list ast with
+    | Either (e, e') -> e::(top_expr_to_list e') in
+  match top_expr_to_list expr with
     | [] -> raise (Unreachable_branch)
-    | l  -> let (automaton, _) = Regex_automaton.add_state ~final:true Regex_automaton.empty in
-            List.fold_left (fun x y -> Regex_automaton.link_ignore x (of_main_expr y)) automaton l
+    | l  -> let (automaton, id) = Regex_automaton.add_state ~initial:true Regex_automaton.empty in
+            List.fold_left (fun x y -> Regex_automaton.link_ignore ~state:[id] x (of_main_expr y))
+                           automaton l
 
 and of_main_expr = function
   | hd::tl -> List.fold_left (fun x y -> Regex_automaton.link_ignore x (of_quantified y))
@@ -96,3 +97,5 @@ and of_quantifier automaton = function
                                        (Regex_automaton.repeat automaton (start-1))
                                        (Regex_automaton.chain automaton) in a
   | Exactly n             -> Regex_automaton.repeat automaton n
+
+let of_ast expr = Regex_automaton.check (of_top_expr expr)

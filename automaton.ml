@@ -41,8 +41,8 @@ module Make (E : sig
     | _::tl, i when i > 0 -> drop tl (i-1)
     | _, _                -> l
 
-  let cons_to_nth l n e = (take l (n-1)) @ (e::List.nth l n)::(drop l (n+1))
-  let append_to_nth l n e = (take l (n-1)) @ ((List.nth l n) @ e)::(drop l (n+1))
+  let cons_to_nth l n e = (take l n) @ (e::List.nth l n)::(drop l (n+1))
+  let append_to_nth l n e = (take l n) @ ((List.nth l n) @ e)::(drop l (n+1))
 
   let add_transition automaton start stop item =
     { automaton with transitions = cons_to_nth automaton.transitions start (item, stop) }
@@ -89,9 +89,9 @@ module Make (E : sig
         | []             -> [] in
       match transitions with
         | hd::tl -> let transition = update_transition hd in
-                    let new_transitions = append_to_nth automaton.transitions (Hashtbl.find trans n)
-                                                        transition in
-                    merge_transitions { automaton with transitions = new_transitions } ~n:(n+1) tl
+                    let transitions' = append_to_nth automaton.transitions (Hashtbl.find trans n)
+                                                     transition in
+                    merge_transitions { automaton with transitions = transitions' } ~n:(n+1) tl
         | []     -> automaton in
     let automaton'' = merge_transitions (merge_states automaton automaton'.states)
                                         automaton'.transitions in

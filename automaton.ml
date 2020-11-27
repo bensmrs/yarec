@@ -115,8 +115,8 @@ module Make (E : sig
     let rec repeat_in acc final' n = match n with
       | 1            -> acc
       | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
-      | _            -> let (acc, _) = link ~state:[final'] ~state':[initial] acc automaton in
-                        repeat_in acc final' (n-1) in
+      | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
+                        repeat_in acc (Hashtbl.find trans final) (n-1) in
     repeat_in automaton final n
 
   let chain ?(initial=(-1)) ?(final=(-1)) automaton =

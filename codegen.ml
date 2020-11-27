@@ -93,9 +93,9 @@ and of_quantifier automaton = function
                                (Regex_automaton.bypass automaton)
   | From 0                -> Regex_automaton.loop automaton
   | From 1                -> Regex_automaton.chain automaton
-  | From start            -> let a = Regex_automaton.link_ignore
-                                       (Regex_automaton.repeat automaton (start-1))
-                                       (Regex_automaton.chain automaton) in a
+  | From start            -> Regex_automaton.link_ignore
+                               (Regex_automaton.repeat automaton (start-1))
+                               (Regex_automaton.chain automaton)
   | Exactly n             -> Regex_automaton.repeat automaton n
 
 let of_ast expr = Regex_automaton.check (of_top_expr expr)

@@ -80,7 +80,7 @@ and of_qual_quantifier automaton = function
 and of_quantifier automaton = function
   | From_to (start, stop) when start = stop
                           -> of_quantifier automaton (Exactly start)
-  | From_to (start, stop) when stop > start
+  | From_to (start, stop) when start > stop
                           -> raise (Invalid_argument "The max should be greater than the min")
   | From_to (0, stop) -> Regex_automaton.link_ignore
                            (Regex_automaton.repeat_bypass automaton (stop))

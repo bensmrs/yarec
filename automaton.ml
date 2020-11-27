@@ -61,20 +61,13 @@ module Make (E : sig
     { automaton with final = Int_set.elements (Int_set.union (Int_set.of_list automaton.final)
                                                              (Int_set.of_list finals)) }
 
-  let link ?(state=(-1)) ?(state'=(-1)) automaton automaton' =
-    let state = if state = -1 then match automaton.final with
-        | hd::[] -> hd
-        | _      -> raise (Invalid_argument "The first automaton must have exactly one final state")
-      else state in
-    let state' = if state' = -1 then match automaton'.initial with
-        | hd::[] -> hd
-        | _      -> raise (Invalid_argument
-                             "The second automaton must have exactly one initial state")
-      else state' in
+  let link ?(state=([])) ?(state'=([])) automaton automaton' =
+    let state = List.sort compare (if state = [] then automaton.final else state) in
+    let state' = List.sort compare (if state' = [] then automaton'.initial else state') in
     let trans = Hashtbl.create (next_available_state automaton') in
-    Hashtbl.add trans state' state;
+    ignore (List.map (fun s -> List.map (fun s' -> Hashtbl.add trans s' s) state') state);
     let rec merge_states automaton = function
-      | (id, _)::tl when id = state'
+      | (id, _)::tl when List.mem id state'
            -> merge_states automaton tl
       | (id, f)::tl
            -> let id' = next_available_state automaton in
@@ -98,7 +91,7 @@ module Make (E : sig
     (add_finals (remove_finals automaton'' automaton.final)
                 (List.map (fun x -> Hashtbl.find trans x) automaton'.final), trans)
 
-  let link_ignore ?(state=(-1)) ?(state'=(-1)) automaton automaton' =
+  let link_ignore ?(state=([])) ?(state'=([])) automaton automaton' =
     let (a, _) = link ~state:state ~state':state' automaton automaton' in a
 
   let get_ends automaton initial final =
@@ -117,7 +110,7 @@ module Make (E : sig
     let rec repeat_in acc final' n = match n with
       | 1            -> acc
       | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
-      | _            -> let (acc, _) = link ~state:final' ~state':initial acc automaton in
+      | _            -> let (acc, _) = link ~state:[final'] ~state':[initial] acc automaton in
                         repeat_in acc final' (n-1) in
     repeat_in automaton final n
 
@@ -136,7 +129,7 @@ module Make (E : sig
     let rec repeat_bypass_in acc final' n = match n with
       | 1            -> acc
       | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
-      | _            -> let (acc, trans) = link ~state: final' ~state': initial acc automaton in
+      | _            -> let (acc, trans) = link ~state: [final'] ~state': [initial] acc automaton in
                         let acc = add_transition acc (Hashtbl.find trans initial) id None in
                         repeat_bypass_in acc final' (n-1) in
     repeat_bypass_in acc final n

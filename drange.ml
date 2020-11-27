@@ -65,7 +65,7 @@ module Make (E : sig
 
   let add_list (r, s) l = of_list [r; s; l]
 
-  let add (r, s) (r', s') = of_list [r; r'; s; s']
+  let add (r, s) (r', s') = of_list (r@r'@s@s')
 
   let substract (r, s) (r', s') =
     let rec minus_ranges r r' acc = match r, r' with
@@ -99,7 +99,7 @@ module Make (E : sig
       | _, [] -> List.rev_append acc s
       | _, _  -> failwith "1Unreachable branch" in
     let rec minus_cross' r s acc = match r, s with
-      | Range (start, stop)::_, Single e::tl when E.compare start e > 0
+      | Range (start, _)::_, Single e::tl when E.compare start e > 0
               -> minus_cross' r tl acc
       | Range (start, stop)::tl, Single e::tl' when E.compare start e = 0
               -> minus_cross' (Range (E.succ e, stop)::tl) tl' acc
@@ -125,15 +125,15 @@ module Make (E : sig
 
   let empty = of_list []
 
-  let rec mem e (ranges, singles) =
+  let mem e (ranges, singles) =
     let rec singles_have e = function
       | Single x::tl when E.compare e x > 0 -> singles_have e tl
-      | Single x::tl when E.compare x e > 0 -> false
+      | Single x::_ when E.compare x e > 0  -> false
       | []                                  -> false
       | _                                   -> true in
     let rec ranges_have e = function
       | Range (_, x)::tl when E.compare e x > 0 -> ranges_have e tl
-      | Range (x, _)::tl when E.compare x e > 0 -> singles_have e singles
+      | Range (x, _)::_ when E.compare x e > 0  -> singles_have e singles
       | []                                      -> singles_have e singles
       | _                                       -> true in
     ranges_have e ranges
@@ -149,7 +149,6 @@ module Int_range = Make (struct
 module Char_range = Make (struct
                             type t = char
                             let compare = compare
-                            let consecutive x y = Char.code y - Char.code x = 1
                             let succ e = Char.chr (Char.code e + 1)
                             let prev e = Char.chr (Char.code e - 1)
                           end)

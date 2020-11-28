@@ -38,7 +38,8 @@ module Make (E : sig
        states = automaton.states @ [f];
        transitions = automaton.transitions @ [[]] }, id)
 
-  let neutral = (let (a, id) = add_state empty in { a with initial = [id]; final = [id] })
+  let single ?(f=fun x->x) () =
+    let (a, id) = add_state ~f empty in { a with initial = [id]; final = [id] }
 
   let rec take l n = match l, n with
     | hd::tl, i when i > 0 -> hd::(take tl (i-1))
@@ -118,7 +119,7 @@ module Make (E : sig
   let repeat automaton ?(initial=(-1)) ?(final=(-1)) n =
     let (initial, final) = get_ends automaton initial final in
     let rec repeat_in acc final' n = match n with
-      | 0            -> neutral
+      | 0            -> single ()
       | 1            -> acc
       | i when i < 0 -> raise (Invalid_argument "Cannot repeat a negative amount of time")
       | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
@@ -136,7 +137,7 @@ module Make (E : sig
     let (acc, id) = add_state ~f automaton in
     let acc = (add_transition acc initial id None) in
     let rec repeat_bypass_in acc final' n = match n with
-      | 0            -> neutral
+      | 0            -> single ()
       | 1            -> acc
       | i when i < 0 -> raise (Invalid_argument "Cannot repeat a negative amount of time")
       | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
@@ -182,6 +183,7 @@ module Make (E : sig
     (next_rstates, List.filter (fun rs -> is_final automaton rs buf) next_rstates)
 
   let check automaton buf =
+    if is_final automaton (rstate_of_id 0) buf then true else
     let rec check_rec = function
       | hd::tl, [] -> check_rec (step automaton (hd::tl) buf)
       | [], []     -> false

@@ -33,26 +33,26 @@ rule token flags = parse
 and default flags = parse
   | '[' '^'                                   { init_verbatim (); NLBRACKET }
   | '['                                       { init_verbatim (); LBRACKET }
-  | '(' '?' '='                               { PLOOKAHEAD }
-  | '(' '?' '!'                               { NLOOKAHEAD }
-  | '(' '?' '<' '='                           { PLOOKBEHIND }
-  | '(' '?' '<' '!'                           { NLOOKBEHIND }
-  | '(' '?' ':'                               { NONCAPTURING }
-  | '(' '?' '#'                               { comment (Location.curr lexbuf) lexbuf; default flags lexbuf }
-  | '('                                       { LPARENTHESIS }
-  | ')'                                       { RPARENTHESIS }
+  | '(' '?' '='                               { global_state := Default; PLOOKAHEAD }
+  | '(' '?' '!'                               { global_state := Default; NLOOKAHEAD }
+  | '(' '?' '<' '='                           { global_state := Default; PLOOKBEHIND }
+  | '(' '?' '<' '!'                           { global_state := Default; NLOOKBEHIND }
+  | '(' '?' ':'                               { global_state := Default; NONCAPTURING }
+  | '(' '?' '#'                               { global_state := Default; comment (Location.curr lexbuf) lexbuf; default flags lexbuf }
+  | '('                                       { global_state := Default; LPARENTHESIS }
+  | ')'                                       { global_state := Default; RPARENTHESIS }
   | '{' (digit+ as s1) ',' (digit+ as s2) '}' { global_state := Quantifying; FROMTO (int_of_string s1, int_of_string s2) }
   | '{' (digit+ as s) ',' '}'                 { global_state := Quantifying; FROM (int_of_string s) }
   | '{' (digit+ as s) '}'                     { global_state := Quantifying; EXACTLY (int_of_string s) }
   | '?'                                       { match !global_state with Quantifying -> (global_state := Default; LAZY) | _ -> (global_state := Quantifying; FROMTO (0,1)) }
   | '+'                                       { match !global_state with Quantifying -> (global_state := Default; POSSESSIVE) | _ -> (global_state := Quantifying; FROM 1) }
   | '*'                                       { global_state := Quantifying; FROM 0 }
-  | '\\'                                      { special lexbuf }
-  | '.'                                       { if Flags.has `DOTALL flags then ANYCHAR else NONNEWLINE }
-  | '^'                                       { STARTL }
-  | '$'                                       { ENDL }
-  | '|'                                       { OR }
-  | _ as c                                    { CHAR c }
+  | '\\'                                      { global_state := Default; special lexbuf }
+  | '.'                                       { global_state := Default; if Flags.has `DOTALL flags then ANYCHAR else NONNEWLINE }
+  | '^'                                       { global_state := Default; if Flags.has `MULTILINE flags then STARTL else START}
+  | '$'                                       { global_state := Default; if Flags.has `MULTILINE flags then ENDL else END }
+  | '|'                                       { global_state := Default; OR }
+  | _ as c                                    { global_state := Default; CHAR c }
 
 and verbatim flags = parse
   | '-' ']' { Util.rewind lexbuf 1; (char_step (); CHAR '-') }

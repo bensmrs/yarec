@@ -33,6 +33,8 @@ type main_atom_t = Special of shorthand
 and quantified_t = Quantified of main_atom_t * qualified_quantifier_t
                  | Start_of_line
                  | End_of_line
+                 | Start_of_input
+                 | End_of_input
 
 and main_expr_t = quantified_t list
 

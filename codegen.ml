@@ -46,13 +46,21 @@ and of_main_expr = function
   | []     -> raise (Invalid_argument "Cannot process an empty expression")
 
 and of_quantified = function
-  | Start_of_line                      -> failwith "Unsupported feature"
-  | End_of_line                        -> failwith "Unsupported feature"
+  | Start_of_line                      -> of_top_expr (Either ([Start_of_input], Expr [Quantified (
+                                            Look_behind (Expr [Quantified (Special New_line,
+                                            Greedy (Exactly 1))]), Greedy (Exactly 1))]))
+  | End_of_line                        -> of_top_expr (Either ([End_of_input], Expr [Quantified (
+                                            Look_ahead (Expr [Quantified (Special New_line,
+                                            Greedy (Exactly 1))]), Greedy (Exactly 1))]))
+  | Start_of_input                     -> failwith "Unsupported feature: ^"
+  | End_of_input                       -> failwith "Unsupported feature: $"
   | Quantified (atom, qual_quantifier) -> of_qual_quantifier (of_main_atom atom) qual_quantifier
 
 and of_main_atom = function
   | Regular c              -> Regex_automaton.of_transition (Some (Char_range.of_list [Single c]))
-  | Special New_line       -> failwith "Unsupported feature"
+  | Special New_line       -> of_top_expr (Either ([Quantified (One_of [Shorthand New_line],
+                                Greedy (Exactly 1))], Expr [Quantified (Regular '\r', Greedy (
+                                Exactly 1)); Quantified (Regular '\n', Greedy (Exactly 1))]))
   | Special s              -> Regex_automaton.of_transition (Some (drange_of_shorthand s))
   | One_of []              -> raise Unreachable_branch
   | One_of l               -> Regex_automaton.of_transition
@@ -65,18 +73,18 @@ and of_main_atom = function
                                          (List.fold_left
                                            (fun x y -> Char_range.add x (atom_to_drange y))
                                            Char_range.empty l)))
-  | Look_ahead _           -> failwith "Unsupported feature"
-  | Negative_look_ahead _  -> failwith "Unsupported feature"
-  | Look_behind _          -> failwith "Unsupported feature"
-  | Negative_look_behind _ -> failwith "Unsupported feature"
-  | No_capture _           -> failwith "Unsupported feature"
-  | Capture _              -> failwith "Unsupported feature"
-  | Back_ref _             -> failwith "Unsupported feature"
+  | Look_ahead _           -> failwith "Unsupported feature: (?=...)"
+  | Negative_look_ahead _  -> failwith "Unsupported feature: (?!...)"
+  | Look_behind _          -> failwith "Unsupported feature: (?<=...)"
+  | Negative_look_behind _ -> failwith "Unsupported feature: (?<!...)"
+  | No_capture expr        -> of_top_expr expr
+  | Capture _              -> failwith "Unsupported feature: (...)"
+  | Back_ref _             -> failwith "Unsupported feature: \\1"
 
 and of_qual_quantifier automaton = function
   | Greedy q     -> of_quantifier automaton q
-  | Lazy _       -> failwith "Unsupported feature"
-  | Possessive _ -> failwith "Unsupported feature"
+  | Lazy _       -> failwith "Unsupported feature: ?"
+  | Possessive _ -> failwith "Unsupported feature: +"
 
 and of_quantifier automaton = function
   | From_to (start, stop) when start = stop

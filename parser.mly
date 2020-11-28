@@ -28,6 +28,7 @@
 %token NEWLINE NONNEWLINE
 %token ANYCHAR
 %token STARTL ENDL
+%token START END
 %token <int> BACKREF
 
 /* Entrypoint */
@@ -42,6 +43,8 @@ start:
 quantified:
   | STARTL                         { Start_of_line }
   | ENDL                           { End_of_line }
+  | START                          { Start_of_input }
+  | END                            { End_of_input }
   | main_atom qualified_quantifier { Quantified ($1, $2) }
 
 main_expr:

@@ -38,6 +38,8 @@ module Make (E : sig
        states = automaton.states @ [f];
        transitions = automaton.transitions @ [[]] }, id)
 
+  let neutral = (let (a, id) = add_state empty in { a with initial = [id]; final = [id] })
+
   let rec take l n = match l, n with
     | hd::tl, i when i > 0 -> hd::(take tl (i-1))
     | _, _                 -> []
@@ -83,18 +85,21 @@ module Make (E : sig
       | _, [] -> automaton in
     let rec merge_transitions automaton ?(n=0) transitions =
       let rec update_transition = function
-        | (item, id)::tl -> (item, Hashtbl.find trans id)::(update_transition tl)
+        | (item, id)::tl -> (List.map (fun id' -> (item, id')) (Hashtbl.find_all trans id)) @
+                            (update_transition tl)
         | []             -> [] in
       match transitions with
         | hd::tl -> let transition = update_transition hd in
-                    let transitions' = append_to_nth automaton.transitions (Hashtbl.find trans n)
-                                                     transition in
+                    let transitions' = List.fold_left (fun t n' -> append_to_nth t n' transition)
+                                                      automaton.transitions
+                                                      (Hashtbl.find_all trans n) in
                     merge_transitions { automaton with transitions = transitions' } ~n:(n+1) tl
         | []     -> automaton in
     let automaton'' = merge_transitions (merge_states automaton automaton'.states)
                                         automaton'.transitions in
     (add_finals (remove_finals automaton'' automaton.final)
-                (List.map (fun x -> Hashtbl.find trans x) automaton'.final), trans)
+                (List.fold_left (fun f n -> f @ (Hashtbl.find_all trans n)) [] automaton'.final),
+     trans)
 
   let link_ignore ?(state=([])) ?(state'=([])) automaton automaton' =
     let (a, _) = link ~state ~state' automaton automaton' in a
@@ -113,8 +118,9 @@ module Make (E : sig
   let repeat automaton ?(initial=(-1)) ?(final=(-1)) n =
     let (initial, final) = get_ends automaton initial final in
     let rec repeat_in acc final' n = match n with
+      | 0            -> neutral
       | 1            -> acc
-      | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
+      | i when i < 0 -> raise (Invalid_argument "Cannot repeat a negative amount of time")
       | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
                         repeat_in acc (Hashtbl.find trans final) (n-1) in
     repeat_in automaton final n
@@ -123,21 +129,20 @@ module Make (E : sig
     let (initial, final) = get_ends automaton initial final in
     add_transition automaton final initial None
 
-  let bypass ?(initial=(-1)) ?(final=(-1)) automaton =
-    let (initial, _) = get_ends automaton initial final in
-    add_finals automaton [initial]
+  let bypass automaton = add_finals automaton automaton.initial
 
   let repeat_bypass automaton ?(initial=(-1)) ?(final=(-1)) ?(f=fun x -> x) n =
     let (initial, final) = get_ends automaton initial final in
     let (acc, id) = add_state ~f automaton in
-    let acc = add_transition acc initial id None in
+    let acc = (add_transition acc initial id None) in
     let rec repeat_bypass_in acc final' n = match n with
+      | 0            -> neutral
       | 1            -> acc
-      | i when i < 1 -> raise (Invalid_argument "Cannot repeat fewer than once")
+      | i when i < 0 -> raise (Invalid_argument "Cannot repeat a negative amount of time")
       | _            -> let (acc, trans) = link ~state:[final'] ~state':[initial] acc automaton in
                         let acc = add_transition acc (Hashtbl.find trans initial) id None in
-                        repeat_bypass_in acc final' (n-1) in
-    repeat_bypass_in acc final n
+                        repeat_bypass_in acc (Hashtbl.find trans final) (n-1) in
+    add_finals (repeat_bypass_in acc final n) [id]
 
   let loop ?(initial=(-1)) ?(final=(-1)) automaton =
     let (initial, final) = get_ends automaton initial final in

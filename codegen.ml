@@ -83,16 +83,12 @@ and of_quantifier automaton = function
                           -> of_quantifier automaton (Exactly start)
   | From_to (start, stop) when start > stop
                           -> raise (Invalid_argument "The max should be greater than the min")
-  | From_to (0, stop) -> Regex_automaton.link_ignore
-                           (Regex_automaton.repeat_bypass automaton (stop))
-                           (Regex_automaton.bypass automaton)
   | From_to (start, stop) -> Regex_automaton.link_ignore
                                (Regex_automaton.link_ignore
                                   (Regex_automaton.repeat automaton start)
-                                  (Regex_automaton.repeat_bypass automaton (stop-start)))
+                                  (Regex_automaton.repeat_bypass automaton (stop-start-1)))
                                (Regex_automaton.bypass automaton)
   | From 0                -> Regex_automaton.loop automaton
-  | From 1                -> Regex_automaton.chain automaton
   | From start            -> Regex_automaton.link_ignore
                                (Regex_automaton.repeat automaton (start-1))
                                (Regex_automaton.chain automaton)

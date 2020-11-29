@@ -45,46 +45,60 @@ and of_main_expr = function
   | []     -> raise (Invalid_argument "Cannot process an empty expression")
 
 and of_quantified = function
-  | Start_of_line                      -> of_top_expr (Either ([Start_of_input], Expr [Quantified (
-                                            Look_behind (Expr [Quantified (Special New_line,
-                                            Greedy (Exactly 1))]), Greedy (Exactly 1))]))
-  | End_of_line                        -> of_top_expr (Either ([End_of_input], Expr [Quantified (
-                                            Look_ahead (Expr [Quantified (Special New_line,
-                                            Greedy (Exactly 1))]), Greedy (Exactly 1))]))
-  | Start_of_input                     -> Regex_automaton.single
-                                            ~f:(to_fun [INDEX; INT 0; EQUAL; ASSERT]) ()
-  | End_of_input                       -> Regex_automaton.single
-                                            ~f:(to_fun [INDEX; BUFFERSIZE; EQUAL; ASSERT]) ()
-  | Quantified (atom, qual_quantifier) -> of_qual_quantifier (of_main_atom atom) qual_quantifier
+  | Start_of_line             -> of_top_expr
+                                   (Either ([Start_of_input],
+                                            Expr [
+                                              Quantified (Look_behind (Expr [
+                                                Quantified (Special New_line, Greedy (Exactly 1))]),
+                                                          Greedy (Exactly 1))]))
+  | End_of_line               -> of_top_expr
+                                   (Either ([End_of_input],
+                                            Expr [
+                                              Quantified (Look_ahead (Expr [
+                                                Quantified (Special New_line, Greedy (Exactly 1))]),
+                                                          Greedy (Exactly 1))]))
+  | Start_of_input            -> Regex_automaton.of_transition
+                                   ~f:(to_fun [CURSOR; INT 0; EQUAL; ASSERT]) None
+  | End_of_input              -> Regex_automaton.of_transition
+                                   ~f:(to_fun [CURSOR; BUFFERSIZE; EQUAL; ASSERT]) None
+  | Quantified (atom, qual_q) -> of_qual_quantifier (of_main_atom atom) qual_q
 
 and of_main_atom = function
-  | Regular c              -> Regex_automaton.of_transition (Some (Char_range.of_list [Single c]))
-  | Special New_line       -> of_top_expr (Either ([Quantified (One_of [Shorthand New_line],
-                                Greedy (Exactly 1))], Expr [Quantified (Regular '\r', Greedy (
-                                Exactly 1)); Quantified (Regular '\n', Greedy (Exactly 1))]))
-  | Special s              -> Regex_automaton.of_transition (Some (drange_of_shorthand s))
-  | One_of []              -> raise Unreachable_branch
-  | One_of l               -> Regex_automaton.of_transition
-                                (Some (List.fold_left
-                                         (fun x y -> Char_range.add x (atom_to_drange y))
-                                         Char_range.empty l))
-  | None_of []             -> raise Unreachable_branch
-  | None_of l              -> Regex_automaton.of_transition
-                                (Some (Char_range.substract charset
-                                         (List.fold_left
-                                           (fun x y -> Char_range.add x (atom_to_drange y))
-                                           Char_range.empty l)))
-  | Look_ahead _           -> failwith "Unsupported feature: (?=...)"
-  | Negative_look_ahead _  -> failwith "Unsupported feature: (?!...)"
-  | Look_behind _          -> failwith "Unsupported feature: (?<=...)"
-  | Negative_look_behind _ -> failwith "Unsupported feature: (?<!...)"
-  | No_capture expr        -> of_top_expr expr
-  | Capture (id, expr)     -> Regex_automaton.link_ignore
-                                (Regex_automaton.link_ignore
-                                   (Regex_automaton.of_transition ~f:(to_fun [MARK]) None)
-                                   (of_top_expr expr))
-                                (Regex_automaton.of_transition ~f:(to_fun [INT id; CAPTURE]) None)
-  | Back_ref _             -> failwith "Unsupported feature: \\1"
+  | Regular c                 -> Regex_automaton.of_transition
+                                   (Some (Char_range.of_list [Single c]))
+  | Special New_line          -> of_top_expr
+                                   (Either ([Quantified (One_of [Shorthand New_line],
+                                                         Greedy (Exactly 1))],
+                                            Expr [Quantified (Regular '\r', Greedy (Exactly 1));
+                                                  Quantified (Regular '\n', Greedy (Exactly 1))]))
+  | Special s                 -> Regex_automaton.of_transition (Some (drange_of_shorthand s))
+  | One_of []                 -> raise Unreachable_branch
+  | One_of l                  -> Regex_automaton.of_transition
+                                   (Some (List.fold_left
+                                            (fun x y -> Char_range.add x (atom_to_drange y))
+                                            Char_range.empty l))
+  | None_of []                -> raise Unreachable_branch
+  | None_of l                 -> Regex_automaton.of_transition
+                                   (Some (Char_range.substract charset
+                                            (List.fold_left
+                                              (fun x y -> Char_range.add x (atom_to_drange y))
+                                              Char_range.empty l)))
+  | Look_ahead expr           -> Regex_automaton.of_transition
+                                   ~f:(to_fun [SAVE; AUTOMATON (of_top_expr expr); CHECK; ASSERT;
+                                               RESTORE]) None
+  | Negative_look_ahead expr  -> Regex_automaton.of_transition
+                                   ~f:(to_fun [SAVE; AUTOMATON (of_top_expr expr); CHECK; NOT;
+                                               ASSERT; RESTORE]) None
+  | Look_behind _             -> failwith "Unsupported feature: (?<=...)"
+  | Negative_look_behind _    -> failwith "Unsupported feature: (?<!...)"
+  | No_capture expr           -> of_top_expr expr
+  | Capture (id, expr)        -> Regex_automaton.link_ignore
+                                   (Regex_automaton.link_ignore
+                                      (Regex_automaton.of_transition ~f:(to_fun [MARK]) None)
+                                      (of_top_expr expr))
+                                   (Regex_automaton.of_transition
+                                      ~f:(to_fun [INT id; CAPTURE]) None)
+  | Back_ref _                -> failwith "Unsupported feature: \\1"
 
 and of_qual_quantifier automaton = function
   | Greedy q     -> of_quantifier automaton q

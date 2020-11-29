@@ -10,11 +10,12 @@ module Make (E : sig
                       val empty : t
                     end) = struct
 
-  type data = Stack of data Stack.t | Tag of string
+  type data = Data.t
+  type buffer = E.elt list
   type generic_state = { id: int;
-                         buffer: E.elt list;
+                         buffer: buffer;
                          cursor: int }
-  type runtime_state = generic_state * Data.t
+  type runtime_state = generic_state * data
   type automaton_state = (runtime_state -> runtime_state)
   type transition_item = E.t option
   type t = { initial: int list;
@@ -159,9 +160,13 @@ module Make (E : sig
                            then find_reachable tl
                            else (s, gstate.cursor+1)::find_reachable tl
       | []              -> [] in
+    let rec list_apply f = function
+      | hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
+      | []     -> [] in
     let transitions = List.nth automaton.transitions gstate.id in
-    List.map (fun (id, cursor) -> (List.nth automaton.states id) ({ gstate with id; cursor }, data))
-             (find_reachable transitions)
+    list_apply (fun (id, cursor) -> (List.nth automaton.states id)
+                                    ({ gstate with id; cursor }, data))
+               (find_reachable transitions)
 
   let rec next_of_list automaton rstates = match rstates with
     | hd::tl -> next automaton hd @ next_of_list automaton tl
@@ -174,13 +179,16 @@ module Make (E : sig
     let next_rstates = next_of_list automaton rstates in
     (next_rstates, List.filter (fun (gstate, _) -> is_final automaton gstate.id) next_rstates)
 
+  let rec check_with automaton = function
+    | hd::tl, [] -> check_with automaton (step automaton (hd::tl))
+    | [], []     -> false
+    | _, _       -> true
+
   let rec check automaton ?(cursor=0) buffer =
-    if cursor = List.length buffer then false else
+    if cursor > List.length buffer then false else
     if is_final automaton 0 then true else
-    let rec check_rec = function
-      | hd::tl, [] -> check_rec (step automaton (hd::tl))
-      | [], []     -> false
-      | _, _       -> true in
     let rstates = List.map (fun id -> { id; buffer; cursor }, Data.empty ) automaton.initial in
-    if check_rec (rstates, []) then true else check automaton ~cursor:(cursor+1) buffer
+    if check_with automaton (rstates, []) then true else check automaton ~cursor:(cursor+1) buffer
+
+  let buffer_length buffer = List.length buffer
 end

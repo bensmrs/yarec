@@ -1,6 +1,6 @@
 (library
  (name yarec)
- (modules Automaton Drange Codegen Lexer Parser Exceptions Flags Location Types Util))
+ (modules Drange Stacklang Automaton Codegen Lexer Parser Exceptions Flags Location Types Util))
 
 (executable
  (name yarec)

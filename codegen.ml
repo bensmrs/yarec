@@ -1,8 +1,7 @@
 open Exceptions
 open Types
 open Drange
-
-module Regex_automaton = Automaton.Make (Char_range)
+open Stacklang
 
 let charset = Char_range.of_list [Range ('\000', '\255')]
 
@@ -52,8 +51,10 @@ and of_quantified = function
   | End_of_line                        -> of_top_expr (Either ([End_of_input], Expr [Quantified (
                                             Look_ahead (Expr [Quantified (Special New_line,
                                             Greedy (Exactly 1))]), Greedy (Exactly 1))]))
-  | Start_of_input                     -> failwith "Unsupported feature: ^"
-  | End_of_input                       -> failwith "Unsupported feature: $"
+  | Start_of_input                     -> Regex_automaton.single
+                                            ~f:(to_fun [INDEX; INT 0; EQUAL; ASSERT]) ()
+  | End_of_input                       -> Regex_automaton.single
+                                            ~f:(to_fun [INDEX; BUFFERSIZE; EQUAL; ASSERT]) ()
   | Quantified (atom, qual_quantifier) -> of_qual_quantifier (of_main_atom atom) qual_quantifier
 
 and of_main_atom = function
@@ -78,7 +79,11 @@ and of_main_atom = function
   | Look_behind _          -> failwith "Unsupported feature: (?<=...)"
   | Negative_look_behind _ -> failwith "Unsupported feature: (?<!...)"
   | No_capture expr        -> of_top_expr expr
-  | Capture _              -> failwith "Unsupported feature: (...)"
+  | Capture (id, expr)     -> Regex_automaton.link_ignore
+                                (Regex_automaton.link_ignore
+                                   (Regex_automaton.of_transition ~f:(to_fun [MARK]) None)
+                                   (of_top_expr expr))
+                                (Regex_automaton.of_transition ~f:(to_fun [INT id; CAPTURE]) None)
   | Back_ref _             -> failwith "Unsupported feature: \\1"
 
 and of_qual_quantifier automaton = function

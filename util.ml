@@ -32,4 +32,10 @@ let append_to_nth l n e = (take l n) @ ((List.nth l n) @ e)::(drop l (n+1))
 let set_nth l n e = (take l n) @ e::(drop l (n+1))
 let slice l start stop = (take (drop l start) (stop-start))
 
+let repeat n e =
+  let rec repeat_rec = function
+    | 0 -> []
+    | i -> e::repeat_rec (i-1) in
+  repeat_rec n
+
 let (@@) f f' = fun x -> f (f' x)

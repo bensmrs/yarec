@@ -27,8 +27,9 @@ and Regex_automaton : sig
   val add_state : ?f:(runtime_state -> runtime_state) -> ?initial:bool -> ?final:bool -> t -> t * int
   val single :  ?f:(runtime_state -> runtime_state) -> unit -> t
   val of_transition :  ?f:(runtime_state -> runtime_state) -> transition_item -> t
-  val link : ?state:int list -> ?state':int list -> t -> t -> t * (int, int) Hashtbl.t
-  val link_ignore : ?state:int list -> ?state':int list -> t -> t -> t
+  val link : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t ->
+             t * (int, int) Hashtbl.t
+  val link_ignore : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t -> t
   val repeat : t -> ?initial:int list -> ?final:int list -> int -> t
   val repeat_bypass : t -> ?initial:int list -> ?final:int list -> ?f:(runtime_state ->
                       runtime_state) -> int -> t
@@ -37,7 +38,7 @@ and Regex_automaton : sig
   val loop : ?initial:int list -> ?final:int list -> t -> t
   val check_with : t -> runtime_state list * runtime_state list -> bool
   val check : t -> buffer -> bool
-  val buffer_length : buffer -> int
+  val reverse : t -> t
 end = Automaton.Make (Char_range) (Regex_bistack)
 
 open Regex_bistack
@@ -45,7 +46,7 @@ open Regex_bistack
 type rstate = Regex_automaton.runtime_state
 
 type instruction = CURSOR | EQUAL | ASSERT | BUFFERSIZE | CAPTURE | CHECK | SAVE | RESTORE | NOT
-                 | RECALL | CONSUME
+                 | RECALL | CONSUME | REVERSE
                  | INT of int | CHAR of char | AUTOMATON of Regex_automaton.t
 
 let to_fun instructions =
@@ -70,7 +71,7 @@ let to_fun instructions =
       | ASSERT, Bool false::_  -> failwith "Assertion failed"
       | ASSERT, _::_           -> failwith "ASSERT: TypeError"
       | ASSERT, _              -> failwith "Not enough to consume"
-      | BUFFERSIZE, _          -> push (Int (Regex_automaton.buffer_length gstate.buffer))
+      | BUFFERSIZE, _          -> push (Int (List.length gstate.buffer))
                                             (gstate, data)
       | SAVE, _                -> push (Rstate (gstate, data)) (gstate, data)
       | RESTORE, Rstate rs::_  -> rs
@@ -88,6 +89,10 @@ let to_fun instructions =
       | CONSUME, Char c::tl    -> (consume gstate c, { data with stack = tl })
       | CONSUME, String s::tl  -> (List.fold_left consume gstate (Util.explode s),
                                    { data with stack = tl })
-      | CONSUME, _             -> failwith "CONSUME requires a Char or a String" in
+      | CONSUME, _             -> failwith "CONSUME requires a Char or a String"
+      | REVERSE, _             -> ({ gstate with buffer = List.rev gstate.buffer;
+                                                 cursor = List.length
+                                                            gstate.buffer - gstate.cursor},
+                                   data) in
     List.fold_left (fun s i -> process i s) rstate instructions in
   f

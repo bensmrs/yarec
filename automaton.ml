@@ -53,15 +53,15 @@ module Make (E : sig
     let automaton = add_transition automaton id id' item in
     { automaton with initial = [id]; final = [id'] }
 
-  let remove_finals automaton finals =
+  let remove_final automaton final =
     { automaton with final = Int_set.elements (Int_set.diff (Int_set.of_list automaton.final)
-                                                            (Int_set.of_list finals)) }
+                                                            (Int_set.of_list final)) }
 
-  let add_finals automaton finals =
+  let add_final automaton final =
     { automaton with final = Int_set.elements (Int_set.union (Int_set.of_list automaton.final)
-                                                             (Int_set.of_list finals)) }
+                                                             (Int_set.of_list final)) }
 
-  let link ?(state=[]) ?(state'=[]) automaton automaton' =
+  let link ?(state=[]) ?(state'=[]) ?(keep_final=false) automaton automaton' =
     let state = List.sort compare (if state = [] then automaton.final else state) in
     let state' = List.sort compare (if state' = [] then automaton'.initial else state') in
     let trans = Hashtbl.create (next_available_state automaton') in
@@ -93,12 +93,13 @@ module Make (E : sig
         | []     -> automaton in
     let automaton'' = merge_transitions (merge_states automaton automaton'.states)
                                         automaton'.transitions in
-    (add_finals (remove_finals automaton'' automaton.final)
-                (List.fold_left (fun f n -> f @ (Hashtbl.find_all trans n)) [] automaton'.final),
-     trans)
+    let automaton'' = if keep_final then automaton''
+                                    else remove_final automaton'' automaton.final in
+    (add_final automaton'' (List.fold_left (fun f n -> f @ (Hashtbl.find_all trans n))
+                                            [] automaton'.final), trans)
 
-  let link_ignore ?(state=[]) ?(state'=[]) automaton automaton' =
-    let (a, _) = link ~state ~state' automaton automaton' in a
+  let link_ignore ?(state=[]) ?(state'=[]) ?(keep_final=false) automaton automaton' =
+    let (a, _) = link ~state ~state' ~keep_final automaton automaton' in a
 
   let repeat automaton ?(initial=[]) ?(final=[]) n =
     let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
@@ -120,7 +121,7 @@ module Make (E : sig
     List.fold_left (fun a f -> List.fold_left (fun a' (t, i) -> add_transition a' f i t)
                                               a initial_transitions) automaton final
 
-  let bypass automaton = add_finals automaton automaton.initial
+  let bypass automaton = add_final automaton automaton.initial
 
   let repeat_bypass automaton ?(initial=[]) ?(final=[]) ?(f=fun x -> x) n =
     let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
@@ -138,7 +139,7 @@ module Make (E : sig
                         repeat_bypass_in acc
                                          (List.fold_left (fun fin f -> Hashtbl.find trans f::fin)
                                                          [] final) (n-1) in
-    add_finals (repeat_bypass_in acc final n) [id]
+    add_final (repeat_bypass_in acc final n) [id]
 
   let loop ?(initial=[]) ?(final=[]) automaton =
     let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
@@ -167,7 +168,8 @@ module Make (E : sig
                            else (s, gstate.cursor+1)::find_reachable tl
       | []              -> [] in
     let rec list_apply f = function
-      | hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
+      (*| hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
+      *)| hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
       | []     -> [] in
     let transitions = List.nth automaton.transitions gstate.id in
     list_apply (fun (id, cursor) -> (List.nth automaton.states id)
@@ -208,5 +210,17 @@ module Make (E : sig
     if is_final automaton 0 then true else
     check_rec automaton ~cursor:0 buffer ([], [])
 
-  let buffer_length buffer = List.length buffer
+  let reverse automaton =
+    let rec reverse_transitions acc index = function
+      | hd::tl -> reverse_transitions
+                    (List.fold_left (fun acc (t, s) -> cons_to_nth acc s (t, index)) acc hd)
+                    (index+1) tl
+      | []     -> acc in
+    let length = List.length automaton.states + 1 in
+    let initial = List.map (fun i -> i+1) automaton.final in
+    let final = List.map (fun i -> i+1) automaton.initial in
+    let transitions = (List.map (fun i -> None, i) initial)::
+                      reverse_transitions (Util.repeat (length-1) []) 1 automaton.transitions in
+    let states = Util.repeat length (fun x -> x) in
+    { initial = [0]; final; transitions; states }
 end

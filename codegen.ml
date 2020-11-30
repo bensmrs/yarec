@@ -94,11 +94,12 @@ and of_main_atom = function
   | No_capture expr           -> of_top_expr expr
   | Capture (id, expr)        -> Regex_automaton.link_ignore
                                    (Regex_automaton.link_ignore
-                                      (Regex_automaton.of_transition ~f:(to_fun [MARK]) None)
+                                      (Regex_automaton.of_transition ~f:(to_fun [CURSOR]) None)
                                       (of_top_expr expr))
-                                   (Regex_automaton.of_transition
-                                      ~f:(to_fun [INT id; CAPTURE]) None)
-  | Back_ref _                -> failwith "Unsupported feature: \\1"
+                                   (Regex_automaton.of_transition ~f:(to_fun [CURSOR; INT (id-1);
+                                                                              CAPTURE]) None)
+  | Back_ref id               -> Regex_automaton.of_transition
+                                   ~f:(to_fun [INT (id-1); RECALL; CONSUME]) None
 
 and of_qual_quantifier automaton = function
   | Greedy q     -> of_quantifier automaton q

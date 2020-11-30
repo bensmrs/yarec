@@ -30,3 +30,6 @@ let rec drop l n = match l, n with
 let cons_to_nth l n e = (take l n) @ (e::List.nth l n)::(drop l (n+1))
 let append_to_nth l n e = (take l n) @ ((List.nth l n) @ e)::(drop l (n+1))
 let set_nth l n e = (take l n) @ e::(drop l (n+1))
+let slice l start stop = (take (drop l start) (stop-start))
+
+let (@@) f f' = fun x -> f (f' x)

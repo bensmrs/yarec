@@ -168,15 +168,14 @@ module Make (E : sig
                            else (s, gstate.cursor+1)::find_reachable tl
       | []              -> [] in
     let rec list_apply f = function
-      (*| hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
-      *)| hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
+      | hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
       | []     -> [] in
     let transitions = List.nth automaton.transitions gstate.id in
     list_apply (fun (id, cursor) -> (List.nth automaton.states id)
                                     ({ gstate with id; cursor }, data))
                (find_reachable transitions)
 
-  let rec next_of_list automaton rstates = match rstates with
+  let rec next_of_list automaton = function
     | hd::tl -> List.rev_append (next automaton hd) (next_of_list automaton tl)
     | []     -> []
 
@@ -191,8 +190,8 @@ module Make (E : sig
     let rstates = List.sort_uniq compare rstates in
     match rstates, rstates' with
     | _::_, [] -> check_with automaton (step automaton rstates)
-    | [], []   -> false
-    | _, _     -> true
+    | [], []   -> None
+    | _, hd::_ -> Some hd
 
   let rec check_rec automaton ?(cursor=0) buffer (rstates_acc, rstates_acc') =
     let rstates = if cursor > List.length buffer

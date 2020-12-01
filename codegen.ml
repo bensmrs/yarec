@@ -36,7 +36,8 @@ let rec of_top_expr expr =
   match top_expr_to_list expr with
     | [] -> raise (Unreachable_branch)
     | l  -> let (automaton, id) = Regex_automaton.add_state ~initial:true Regex_automaton.empty in
-            List.fold_left (fun x y -> Regex_automaton.link_ignore ~state:[id] ~keep_final:true x (of_main_expr y))
+            List.fold_left (fun x y -> Regex_automaton.link_ignore ~state:[id] ~keep_final:true
+                                       x (of_main_expr y))
                            automaton l
 
 and of_main_expr = function
@@ -83,9 +84,11 @@ and of_main_atom = function
                                             (List.fold_left
                                               (fun x y -> Char_range.add x (atom_to_drange y))
                                               Char_range.empty l)))
-  | Look_ahead expr           -> Regex_automaton.of_transition
-                                   ~f:(to_fun [SAVE; AUTOMATON (of_top_expr expr); CHECK; ASSERT;
-                                               RESTORE]) None
+  | Look_ahead expr           -> Regex_automaton.link_ignore
+                                   (Regex_automaton.link_ignore
+                                      (Regex_automaton.of_transition ~f:(to_fun [SAVE]) None)
+                                      (of_top_expr expr))
+                                   (Regex_automaton.of_transition ~f:(to_fun [RESTORECUR]) None)
   | Negative_look_ahead expr  -> Regex_automaton.of_transition
                                    ~f:(to_fun [SAVE; AUTOMATON (of_top_expr expr); CHECK; NOT;
                                                ASSERT; RESTORE]) None
@@ -93,7 +96,7 @@ and of_main_atom = function
                                    ~f:(to_fun [SAVE; REVERSE;
                                                AUTOMATON (Regex_automaton.reverse
                                                            (of_top_expr expr));
-                                               CHECK; ASSERT; RESTORE]) None
+                                               CHECK; ASSERT; RESTORESTATE]) None
   | Negative_look_behind expr -> Regex_automaton.of_transition
                                    ~f:(to_fun [SAVE; REVERSE;
                                                AUTOMATON (Regex_automaton.reverse

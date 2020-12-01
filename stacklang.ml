@@ -36,7 +36,7 @@ and Regex_automaton : sig
   val chain : ?initial:int list -> ?final:int list -> t -> t
   val bypass : t -> t
   val loop : ?initial:int list -> ?final:int list -> t -> t
-  val check_with : t -> runtime_state list * runtime_state list -> bool
+  val check_with : t -> runtime_state list * runtime_state list -> runtime_state option
   val check : t -> buffer -> bool
   val reverse : t -> t
 end = Automaton.Make (Char_range) (Regex_bistack)
@@ -46,7 +46,7 @@ open Regex_bistack
 type rstate = Regex_automaton.runtime_state
 
 type instruction = CURSOR | EQUAL | ASSERT | BUFFERSIZE | CAPTURE | CHECK | SAVE | RESTORE | NOT
-                 | RECALL | CONSUME | REVERSE
+                 | RECALL | CONSUME | REVERSE | RESTORECUR | RESTORESTATE
                  | INT of int | CHAR of char | AUTOMATON of Regex_automaton.t
 
 let to_fun instructions =
@@ -61,9 +61,10 @@ let to_fun instructions =
       | CHAR c, _              -> push (Char c) (gstate, data)
       | AUTOMATON a, _         -> push (Automaton a) (gstate, data)
       | CURSOR, _              -> push (Int gstate.cursor) (gstate, data)
-      | CHECK, Automaton a::tl -> push (Bool (Regex_automaton.check_with
-                                                a ([({ gstate with id = 0 }, data)], [])))
-                                       (gstate, { data with stack = tl })
+      | CHECK, Automaton a::tl -> (match Regex_automaton.check_with
+                                           a ([({ gstate with id = 0 }, data)], []) with
+                                   | Some (_, data) -> push (Bool true) (gstate, { data with stack = tl })
+                                   | None           -> push (Bool false) (gstate, { data with stack = tl }))
       | CHECK, _               -> failwith "CHECK requires an Automaton"
       | EQUAL, hd::hd'::tl     -> push (Bool (hd = hd')) (gstate, { data with stack = tl })
       | EQUAL, _               -> failwith "Not enough to consume"
@@ -73,21 +74,27 @@ let to_fun instructions =
       | ASSERT, _              -> failwith "Not enough to consume"
       | BUFFERSIZE, _          -> push (Int (List.length gstate.buffer))
                                             (gstate, data)
-      | SAVE, _                -> push (Rstate (gstate, data)) (gstate, data)
-      | RESTORE, Rstate rs::_  -> rs
+      | SAVE, _                -> print_endline "SAVING";print_endline (string_of_int gstate.cursor);push (Rstate (gstate, data)) (gstate, data)
+      | RESTORE, Rstate rs::_  -> print_endline "RESTORED";rs
       | RESTORE, _             -> failwith "RESTORE requires an Rstate"
+      | RESTORECUR, Rstate (gs, _)::tl
+                               -> print_endline "RESTORED";print_endline (string_of_int gs.cursor);({ gstate with cursor = gs.cursor }, { data with stack = tl })
+      | RESTORECUR, _          -> failwith "RESTORECUR requires an Rstate"
+      | RESTORESTATE, Rstate (gs, _)::tl
+                               -> (gs, { data with stack = tl })
+      | RESTORESTATE, _        -> failwith "RESTORESTATE requires an Rstate"
       | NOT, Bool b::tl        -> push (Bool (not b)) (gstate, { data with stack = tl })
       | NOT, _                 -> failwith "NOT requires a Bool"
       | CAPTURE, Int i::Int e::Int b::tl
-                               -> let s = Util.string_of_chars (Util.slice gstate.buffer b e) in
+                               -> print_endline "CAPTURED";let s = Util.string_of_chars (Util.slice gstate.buffer b e) in
                                   (gstate, { stack = tl;
-                                             captures = Util.set_nth data.captures i s })
+                                             captures = Util.set_nth_safe data.captures i s "" })
       | CAPTURE, _             -> failwith "CAPTURE requires three Int"
       | RECALL, Int i::tl      -> (gstate, { data with stack = (String (List.nth
                                                                           data.captures i))::tl })
       | RECALL, _              -> failwith "RECALL requires an Int"
       | CONSUME, Char c::tl    -> (consume gstate c, { data with stack = tl })
-      | CONSUME, String s::tl  -> (List.fold_left consume gstate (Util.explode s),
+      | CONSUME, String s::tl  -> print_endline ("CONSUMING" ^ s);(List.fold_left consume gstate (Util.explode s),
                                    { data with stack = tl })
       | CONSUME, _             -> failwith "CONSUME requires a Char or a String"
       | REVERSE, _             -> ({ gstate with buffer = List.rev gstate.buffer;

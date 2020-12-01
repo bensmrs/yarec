@@ -30,12 +30,17 @@ let rec drop l n = match l, n with
 let cons_to_nth l n e = (take l n) @ (e::List.nth l n)::(drop l (n+1))
 let append_to_nth l n e = (take l n) @ ((List.nth l n) @ e)::(drop l (n+1))
 let set_nth l n e = (take l n) @ e::(drop l (n+1))
-let slice l start stop = (take (drop l start) (stop-start))
 
 let repeat n e =
   let rec repeat_rec = function
-    | 0 -> []
-    | i -> e::repeat_rec (i-1) in
+    | i when i > 0 -> e::repeat_rec (i-1)
+    | _ -> [] in
   repeat_rec n
+
+let set_nth_safe l n e e' =
+  let l' = l @ repeat (n - List.length l) e' in
+  (take l' n) @ e::(drop l' (n+1))
+
+let slice l start stop = (take (drop l start) (stop-start))
 
 let (@@) f f' = fun x -> f (f' x)

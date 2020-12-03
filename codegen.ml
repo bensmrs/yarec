@@ -133,7 +133,28 @@ and of_quantifier automaton = function
   | Exactly n             -> repeat automaton n
 
 let check expr = capture_id := 0; check (of_top_expr 0 expr)
+
 let match_one expr buffer =
   capture_id := 0;
   let (rstate, data) = Option.get (match_one (of_top_expr 0 expr) buffer) in
   Util.string_of_chars (Util.slice rstate.buffer rstate.start rstate.cursor)::data.captures
+
+let find_first_matching exprs buffer =
+  let rec find_first_matching_rec id = function
+    | hd::tl -> let automaton = of_top_expr 1 hd in
+                compose_states automaton (final_of automaton)
+                               (fun (rstate, data) -> (rstate,
+                                                       { data with stack = Int id::data.stack }))::
+                find_first_matching_rec (id+1) tl
+    | []     -> [] in
+  let full_automaton = match find_first_matching_rec 0 exprs with
+    | [] -> failwith "Empty RegEx list"
+    | l  -> let (automaton, id) = add_state ~initial:true empty in
+            let (automaton, id') = add_state automaton in
+            let automaton = add_transition automaton id id' Epsilon in
+            List.fold_left (fun x y -> link_ignore ~state:[id'] ~keep_final:true x y) automaton l in
+  match match_first full_automaton buffer with
+  | Some (_, data) -> (match List.hd data.stack with
+                       | Int i -> i
+                       | _ -> failwith "Corrupt stack")
+  | _              -> -1

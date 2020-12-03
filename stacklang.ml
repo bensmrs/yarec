@@ -30,6 +30,7 @@ and Regex_automaton : sig
   val add_transition : t -> int -> int -> transition_item -> t
   val single :  ?f:(runtime_state -> runtime_state) -> unit -> t
   val of_transition :  ?f:(runtime_state -> runtime_state) -> transition_item -> t
+  val compose_states : t -> int list -> (runtime_state -> runtime_state) -> t
   val link : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t ->
              t * (int, int) Hashtbl.t
   val link_ignore : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t -> t
@@ -43,7 +44,9 @@ and Regex_automaton : sig
   val check : t -> buffer -> bool
   val reverse : t -> t
   val match_one : t -> buffer -> runtime_state option
+  val match_first : t -> buffer -> runtime_state option
   val with_greed : t -> int -> Automaton.greed -> t
+  val final_of : t -> int list
 end = Automaton.Make (Char_range) (Regex_bistack)
 
 open Regex_bistack

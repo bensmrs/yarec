@@ -1,10 +1,15 @@
 open Yarec
 
+let find_first_matching regexes str =
+    let asts = List.map (fun r -> Parser.start (Lexer.token []) (Lexing.from_string r)) regexes in
+    Codegen.find_first_matching asts (Util.explode str)
+
+let match_one regex str = (Codegen.match_one (Parser.start (Lexer.token [])
+                                                              (Lexing.from_string regex)))
+                               (Util.explode str)
+
 let _ =
-    print_string "RegEx: ";
-    let regex = read_line () in
-    let lexbuf = Lexing.from_string regex in
-    print_string "Input: ";
-    let input = read_line () in
-    let match_one = (Codegen.match_one (Parser.start (Lexer.token []) lexbuf)) in
-    print_endline (String.concat ", " (match_one (Util.explode input)))
+  print_string (String.concat ", " (match_one "((ab)*)ab" "ababababab"));
+  print_newline ();
+  print_int (find_first_matching ["^foo(bar)"; "^ding[do]ng?$"; "testtest" ] "dingon");
+  print_newline ()

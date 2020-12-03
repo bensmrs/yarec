@@ -20,11 +20,14 @@ and Regex_automaton : sig
   type buffer = char list
   type generic_state = { id: int;
                          buffer: buffer;
-                         cursor: int }
+                         start: int;
+                         cursor: int;
+                         steps: Automaton.step list * Automaton.step list }
   type runtime_state = generic_state * data
-  type transition_item = Char_range.t option
+  type transition_item = Char_range.t Automaton.transition
   val empty : t
   val add_state : ?f:(runtime_state -> runtime_state) -> ?initial:bool -> ?final:bool -> t -> t * int
+  val add_transition : t -> int -> int -> transition_item -> t
   val single :  ?f:(runtime_state -> runtime_state) -> unit -> t
   val of_transition :  ?f:(runtime_state -> runtime_state) -> transition_item -> t
   val link : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t ->
@@ -39,6 +42,8 @@ and Regex_automaton : sig
   val check_with : t -> runtime_state list * runtime_state list -> runtime_state option
   val check : t -> buffer -> bool
   val reverse : t -> t
+  val match_one : t -> buffer -> runtime_state option
+  val with_greed : t -> int -> Automaton.greed -> t
 end = Automaton.Make (Char_range) (Regex_bistack)
 
 open Regex_bistack
@@ -74,11 +79,11 @@ let to_fun instructions =
       | ASSERT, _              -> failwith "Not enough to consume"
       | BUFFERSIZE, _          -> push (Int (List.length gstate.buffer))
                                             (gstate, data)
-      | SAVE, _                -> print_endline "SAVING";print_endline (string_of_int gstate.cursor);push (Rstate (gstate, data)) (gstate, data)
-      | RESTORE, Rstate rs::_  -> print_endline "RESTORED";rs
+      | SAVE, _                -> push (Rstate (gstate, data)) (gstate, data)
+      | RESTORE, Rstate rs::_  -> rs
       | RESTORE, _             -> failwith "RESTORE requires an Rstate"
       | RESTORECUR, Rstate (gs, _)::tl
-                               -> print_endline "RESTORED";print_endline (string_of_int gs.cursor);({ gstate with cursor = gs.cursor }, { data with stack = tl })
+                               -> ({ gstate with cursor = gs.cursor }, { data with stack = tl })
       | RESTORECUR, _          -> failwith "RESTORECUR requires an Rstate"
       | RESTORESTATE, Rstate (gs, _)::tl
                                -> (gs, { data with stack = tl })
@@ -86,7 +91,7 @@ let to_fun instructions =
       | NOT, Bool b::tl        -> push (Bool (not b)) (gstate, { data with stack = tl })
       | NOT, _                 -> failwith "NOT requires a Bool"
       | CAPTURE, Int i::Int e::Int b::tl
-                               -> print_endline "CAPTURED";let s = Util.string_of_chars (Util.slice gstate.buffer b e) in
+                               -> let s = Util.string_of_chars (Util.slice gstate.buffer b e) in
                                   (gstate, { stack = tl;
                                              captures = Util.set_nth_safe data.captures i s "" })
       | CAPTURE, _             -> failwith "CAPTURE requires three Int"
@@ -94,7 +99,7 @@ let to_fun instructions =
                                                                           data.captures i))::tl })
       | RECALL, _              -> failwith "RECALL requires an Int"
       | CONSUME, Char c::tl    -> (consume gstate c, { data with stack = tl })
-      | CONSUME, String s::tl  -> print_endline ("CONSUMING" ^ s);(List.fold_left consume gstate (Util.explode s),
+      | CONSUME, String s::tl  -> (List.fold_left consume gstate (Util.explode s),
                                    { data with stack = tl })
       | CONSUME, _             -> failwith "CONSUME requires a Char or a String"
       | REVERSE, _             -> ({ gstate with buffer = List.rev gstate.buffer;

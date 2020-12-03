@@ -27,7 +27,7 @@ type main_atom_t = Special of shorthand
                  | Look_behind of t
                  | Negative_look_behind of t
                  | No_capture of t
-                 | Capture of int * t
+                 | Capture of t
                  | Back_ref of int
 
 and quantified_t = Quantified of main_atom_t * qualified_quantifier_t

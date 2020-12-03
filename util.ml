@@ -14,10 +14,7 @@ let rec find_index ?(index=0) e = function
   | _::tl             -> find_index ~index:(index+1) e tl
   | []                -> raise Not_found
 
-let string_of_chars chars = 
-  let buf = Buffer.create (List.length chars) in
-  List.iter (Buffer.add_char buf) chars;
-  Buffer.contents buf
+let string_of_chars chars = String.of_seq (List.to_seq chars)
 
 let rec take l n = match l, n with
   | hd::tl, i when i > 0 -> hd::(take tl (i-1))

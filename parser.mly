@@ -1,6 +1,5 @@
 %{
   open Types
-  let group_id = ref 1
 %}
 
 %token EOF
@@ -51,9 +50,13 @@ main_expr:
   | quantified           { [$1] }
   | quantified main_expr { $1::$2 }
 
+main_expr_or_nothing:
+ |           { [] }
+ | main_expr { $1 }
+
 top_expr:
-  | main_expr             { Expr $1 }
-  | main_expr OR top_expr { Either ($1, $3) }
+  | main_expr_or_nothing             { Expr $1 }
+  | main_expr_or_nothing OR top_expr { Either ($1, $3) }
 
 qualified_quantifier:
   | quantifier            { Greedy $1 }
@@ -110,4 +113,4 @@ group:
   | PLOOKBEHIND top_expr RPARENTHESIS  { Look_behind $2 }
   | NLOOKBEHIND top_expr RPARENTHESIS  { Negative_look_behind $2 }
   | NONCAPTURING top_expr RPARENTHESIS { No_capture $2 }
-  | LPARENTHESIS top_expr RPARENTHESIS { let id = !group_id in (group_id := id + 1; Capture (id, $2))}
+  | LPARENTHESIS top_expr RPARENTHESIS { Capture $2 }

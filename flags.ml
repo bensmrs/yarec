@@ -1,3 +1,3 @@
-type flag = [`DOTALL]
+type t = [`CASELESS | `DOTALL | `MULTILINE]
 
-let has : flag -> flag list -> bool = List.mem
+let has : t -> t list -> bool = List.mem

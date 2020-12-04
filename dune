@@ -1,14 +1,16 @@
 (library
  (name yarec)
- (modules Lexer Parser Exceptions Flags Location Types Util))
+ (modules Lexer Parser Exceptions Flags Location Types Util LexingII Nmap_lexer))
 
 (executables
- (names yarec_stdin main)
+ (names yarec_stdin main mainAll)
  (libraries yarec)
- (modules Yarec_stdin Main))
+ (modules Yarec_stdin Main MainAll))
 
 (ocamllex lexer)
+(ocamllex nmap_lexer)
 
 (menhir
  (modules parser)
  (flags --explain))
+;; --trace

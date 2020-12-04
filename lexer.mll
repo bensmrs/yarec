@@ -85,7 +85,7 @@ and comment start_loc = parse
   | _   { comment start_loc lexbuf }
 
 and verbatim = parse
-  | '-' ']' { Util.rewind lexbuf 1; VerbChar '-' }
+  | '-' ']' { LexingII.rewind lexbuf 1; VerbChar '-' }
   | ']'     { CloseBra }
   | '\\'    { special lexbuf }
   | '-'     { Dash }
@@ -128,7 +128,7 @@ and verbatim = parse
     | Ext((SPECIAL _ | BACKREF _) as t) ->
       t, Some { state with range = Z }
     | SpecialChar c ->
-      let new_range = match state.range with II -> Z _ -> I in
+      let new_range = match state.range with II -> Z | _ -> I in
       let new_state = if state.kind <> Verbatim then Default else Verbatim in
       CHAR c, Some { state with kind = new_state; range = new_range }
     (* Other character not in verbatim *)

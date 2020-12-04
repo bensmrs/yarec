@@ -1,4 +1,4 @@
 - execute using dune:
-dune exec ./yarec.exe
+dune exec ./yarec_stdin.exe
 
 it waits for a regex from stdin

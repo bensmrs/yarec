@@ -97,4 +97,4 @@ and prop_string ch = parse
 
 and arg = parse
   | 'a' { true }
-  | _  { Util.rewind lexbuf 1; false }
+  | _  { LexingII.rewind lexbuf 1; false }

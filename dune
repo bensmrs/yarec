@@ -1,6 +1,6 @@
 (library
  (name yarec)
- (modules Lexer Parser Exceptions Flags Location Types Util LexingII Nmap_lexer))
+ (modules Lexer Parser Exceptions Flags Location Types LexingII Nmap_lexer))
 
 (executables
  (names yarec_stdin main mainAll)

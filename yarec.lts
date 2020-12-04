@@ -1,0 +1,12 @@
+D3 = ({b,c} -> V3 | {d,e,f} -> Q3 | g -> D0 | h -> D1 | {i,j,k,l} -> D3),
+D2 = ({b,c} -> V3 | {d,e,f} -> Q2 | g -> ERROR | h -> D0 | {i,j,k,l} -> D2),
+D1 = ({b,c} -> V3 | {d,e,f} -> Q1 | g -> D0 | h -> D1 | {i,j,k,l} -> D1),
+D0 = ({b,c} -> V3 | {d,e,f} -> Q0 | g -> D0 | h -> D1 | {i,j,k,l} -> D0),
+Q3 = ({b,c} -> V3 | {d,e,f} -> Q3 | g -> D0 | h -> D1 | {i,j,k,l} -> D3),
+Q2 = ({b,c} -> V3 | {d,e,f} -> Q2 | g -> ERROR | h -> D0 | {i,j,k,l} -> D2),
+Q1 = ({b,c} -> V3 | {d,e,f} -> Q1 | g -> D0 | h -> D1 | {i,j,k,l} -> D1),
+Q0 = ({b,c} -> V3 | {d,e,f} -> Q0 | g -> D0 | h -> D1 | {i,j,k,l} -> D0),
+V3 = ({b,e,f,h} -> V1 | {c,d} -> V1 | g -> V0 | {i,j,k,l} -> V1),
+V2 = ({b,e,f,h} -> V0 | {c,d} -> V1 | g -> ERROR | i -> D2 | {j,k,l} -> V0),
+V1 = ({b,e,f,h} -> V1 | {c,d} -> V1 | g -> V0 | i -> D1 | k -> V2 | {j,l} -> V1),
+V0 = ({b,e,f,h} -> V1 | {c,d} -> V1 | g -> V0 | i -> D0 | {j,k,l} -> V1).

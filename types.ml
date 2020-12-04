@@ -16,10 +16,13 @@ type shorthand = H_space | Non_h_space
 
 type one_atom_t = Shorthand of shorthand
                 | Single of char
+                | ISingle of char
                 | Range of char * char
+                | IRange of char * char
 
 type main_atom_t = Special of shorthand
                  | Regular of char
+                 | IRegular of char
                  | One_of of one_atom_t list
                  | None_of of one_atom_t list
                  | Look_ahead of t

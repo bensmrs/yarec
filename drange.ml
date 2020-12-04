@@ -20,6 +20,7 @@ module Make (E : sig
     | _             -> e
 
   let sort e e' = match e, e' with
+    | Range (x, y), _ when E.compare x y > 0               -> raise Not_a_range
     | Range (x, y), Range (x', y') when E.compare x x' = 0 -> E.compare y' y
     | Range (x, _), Range (x', _) | Single x, Single x'    -> E.compare x x'
     | Range (_, _), Single _                               -> -1

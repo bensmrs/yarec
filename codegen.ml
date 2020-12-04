@@ -8,6 +8,66 @@ let charset = Char_range.of_list [Range ('\000', '\255')]
 
 let capture_id = ref 0
 
+let is_letter c =
+  let cc = Char.code c in
+  65 <= cc && cc <= 90 || 97 <= cc && cc <= 122 || 192 <= cc && cc <= 214 ||
+  216 <= cc && cc <= 246 || 248 <= cc
+
+let get_subrange c =
+  match Char.code c with
+  | cc when cc < 65   -> 0
+  | cc when cc <= 90  -> 1 (* uppercase letters *)
+  | cc when cc < 97   -> 2
+  | cc when cc <= 122 -> 3 (* lowercase letters *)
+  | cc when cc < 192  -> 4
+  | cc when cc <= 214 -> 5 (* uppercase accented *)
+  | cc when cc < 216  -> 6
+  | cc when cc <= 222 -> 7 (* uppercase complements *)
+  | cc when cc < 224  -> 8
+  | cc when cc <= 246 -> 9 (* lowercase accented *)
+  | cc when cc < 248  -> 10
+  | cc when cc <= 254 -> 11 (* lowercase complements *)
+  | _                 -> 12
+
+let get_subrange_bounds id =
+  let get_subrange_code = function
+    | 0  -> (0, 64)
+    | 1  -> (65, 90)
+    | 2  -> (91, 96)
+    | 3  -> (97, 122)
+    | 4  -> (123, 191)
+    | 5  -> (192, 214)
+    | 6  -> (215, 215)
+    | 7  -> (216, 222)
+    | 8  -> (223, 223)
+    | 9  -> (224, 246)
+    | 10 -> (247, 247)
+    | 11 -> (248, 254)
+    | _  -> (255, 255)
+  in let (min, max) = get_subrange_code id in (Char.chr min, Char.chr max)
+
+let alternatives c =
+  match get_subrange c with
+  | 1 | 5 | 7  -> [c; Char.chr (Char.code c + 32)]
+  | 3 | 9 | 11 -> [Char.chr (Char.code c - 32); c]
+  | _          -> [c]
+
+let range_alternatives start stop =
+  let rec partition_range start stop =
+    let sr_id = get_subrange start in
+    let sr_id' = get_subrange stop in
+    if sr_id = sr_id' then [(start, stop)] else
+    let (_, max) = get_subrange_bounds sr_id in
+    (start, max)::partition_range (Char.chr (Char.code max + 1)) stop in
+  let rec get_alternatives = function
+    | (min, max)::tl -> (match alternatives min, alternatives max with
+                         | _::[], _::[]                     -> (min, max)::get_alternatives tl
+                         | alt1::alt2::[], alt1'::alt2'::[] -> (alt1, alt1')::(alt2, alt2')::
+                                                               get_alternatives tl
+                         | _                                -> failwith "Malformed range")
+    | []             -> [] in
+  get_alternatives (partition_range start stop)
+
 let rec not_shorthand s = Char_range.substract charset (drange_of_shorthand s)
 
 and drange_of_shorthand = function
@@ -28,9 +88,12 @@ and drange_of_shorthand = function
   | Any_char        -> charset
 
 let atom_to_drange = function
-  | Shorthand s         -> drange_of_shorthand s
-  | Single c            -> Char_range.of_list [Single c]
-  | Range (start, stop) -> Char_range.of_list [Range (start, stop)]
+  | Shorthand s          -> drange_of_shorthand s
+  | Single c             -> Char_range.of_list [Single c]
+  | ISingle c            -> Char_range.of_list (List.map (fun c -> Single c) (alternatives c))
+  | Range (start, stop)  -> Char_range.of_list [Range (start, stop)]
+  | IRange (start, stop) -> Char_range.of_list (List.map (fun (min, max) -> Range (min, max))
+                                                         (range_alternatives start stop))
 
 let rec of_top_expr level expr =
   let rec top_expr_to_list = function
@@ -69,6 +132,7 @@ and of_quantified level = function
 
 and of_main_atom level = function
   | Regular c                 -> of_transition (Consume (Char_range.of_list [Single c]))
+  | IRegular c                -> of_main_atom level (One_of [ISingle c])
   | Special New_line          -> of_top_expr (level+1)
                                    (Either ([Quantified (One_of [Shorthand New_line],
                                                          Greedy (Exactly 1))],

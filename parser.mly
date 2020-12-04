@@ -5,7 +5,7 @@
 %token EOF
 
 /* Operator */
-%token RANGE
+%token RANGE IRANGE
 %token OR
 
 /* Pairs */
@@ -18,7 +18,7 @@
 %token LAZY POSSESSIVE
 
 /* Text */
-%token <char> CHAR
+%token <char> CHAR ICHAR
 %token HSPACE NONHSPACE
 %token VSPACE NONVSPACE
 %token WHITESPACE NONWHITESPACE
@@ -86,6 +86,7 @@ special_char:
 
 string_atom:
   | CHAR         { Regular $1 }
+  | ICHAR        { IRegular $1 }
   | special_char { Special $1 }
 
 main_atom:
@@ -99,9 +100,11 @@ one:
   | NLBRACKET one_expr RBRACKET { None_of ($2) }
 
 one_atom:
-  | CHAR            { Single $1 }
-  | special_char    { Shorthand $1 }
-  | CHAR RANGE CHAR { Range ($1, $3) }
+  | CHAR               { Single $1 }
+  | ICHAR              { ISingle $1 }
+  | special_char       { Shorthand $1 }
+  | CHAR RANGE CHAR    { Range ($1, $3) }
+  | ICHAR IRANGE ICHAR { IRange ($1, $3) }
 
 one_expr:
   | one_atom          { [$1] }

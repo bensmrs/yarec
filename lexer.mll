@@ -52,14 +52,14 @@ and default flags = parse
   | '^'                                       { global_state := Default; if Flags.has `MULTILINE flags then STARTL else START}
   | '$'                                       { global_state := Default; if Flags.has `MULTILINE flags then ENDL else END }
   | '|'                                       { global_state := Default; OR }
-  | _ as c                                    { global_state := Default; CHAR c }
+  | _ as c                                    { global_state := Default; if Flags.has `CASELESS flags then ICHAR c else CHAR c }
 
 and verbatim flags = parse
   | '-' ']' { Util.rewind lexbuf 1; (char_step (); CHAR '-') }
   | ']'     { if verbatim_has_started () then (global_state := Default; RBRACKET) else (char_step (); CHAR ']') }
   | '\\'    { special lexbuf }
-  | '-'     { dash_step (); if range_is_char () then CHAR '-' else RANGE }
-  | _ as c  { char_step (); CHAR c }
+  | '-'     { dash_step (); if range_is_char () then CHAR '-' else if Flags.has `CASELESS flags then IRANGE else RANGE }
+  | _ as c  { char_step (); if Flags.has `CASELESS flags then ICHAR c else CHAR c }
 
 and special = parse
   (*           { Special rule }  { Character rule } *)

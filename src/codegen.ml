@@ -95,7 +95,7 @@ let atom_to_drange = function
   | IRange (start, stop) -> Char_range.of_list (List.map (fun (min, max) -> Range (min, max))
                                                          (range_alternatives start stop))
 
-let rec of_top_expr level expr =
+let rec of_top_expr greed level expr =
   let rec top_expr_to_list = function
     | Expr e         -> [e]
     | Either (e, e') -> e::(top_expr_to_list e') in
@@ -105,21 +105,21 @@ let rec of_top_expr level expr =
             let (automaton, id') = add_state automaton in
             let automaton = add_transition automaton id id' Epsilon in
             List.fold_left (fun x y -> link_ignore ~state:[id'] ~keep_final:true x
-                                                   (of_main_expr level y)) automaton l
+                                                   (of_main_expr greed level y)) automaton l
 
-and of_main_expr level = function
-  | hd::tl -> List.fold_left (fun x y -> link_ignore x (of_quantified level y))
-                                                       (of_quantified level hd) tl
+and of_main_expr greed level = function
+  | hd::tl -> List.fold_left (fun x y -> link_ignore x (of_quantified greed level y))
+                                                       (of_quantified greed level hd) tl
   | []     -> Regex_automaton.single ()
 
-and of_quantified level = function
-  | Start_of_line             -> of_top_expr (level+1)
+and of_quantified greed level = function
+  | Start_of_line             -> of_top_expr greed level
                                    (Either ([Start_of_input],
                                             Expr [
                                               Quantified (Look_behind (Expr [
                                                 Quantified (Special New_line, Greedy (Exactly 1))]),
                                                           Greedy (Exactly 1))]))
-  | End_of_line               -> of_top_expr (level+1)
+  | End_of_line               -> of_top_expr greed level
                                    (Either ([End_of_input],
                                             Expr [
                                               Quantified (Look_ahead (Expr [
@@ -128,12 +128,13 @@ and of_quantified level = function
   | Start_of_input            -> of_transition ~f:(to_fun [CURSOR; INT 0; EQUAL; ASSERT]) Epsilon
   | End_of_input              -> of_transition ~f:(to_fun [CURSOR; BUFFERSIZE; EQUAL; ASSERT])
                                                Epsilon
-  | Quantified (atom, qual_q) -> of_qual_quantifier level (of_main_atom level atom) qual_q
+  | Quantified (atom, qual_q) -> of_qual_quantifier greed level (of_main_atom greed level atom)
+                                                    qual_q
 
-and of_main_atom level = function
+and of_main_atom greed level = function
   | Regular c                 -> of_transition (Consume (Char_range.of_list [Single c]))
-  | IRegular c                -> of_main_atom level (One_of [ISingle c])
-  | Special New_line          -> of_top_expr (level+1)
+  | IRegular c                -> of_main_atom greed level (One_of [ISingle c])
+  | Special New_line          -> of_top_expr greed (level+1)
                                    (Either ([Quantified (One_of [Shorthand New_line],
                                                          Greedy (Exactly 1))],
                                             Expr [Quantified (Regular '\r', Greedy (Exactly 1));
@@ -153,60 +154,60 @@ and of_main_atom level = function
   | Look_ahead expr           -> link_ignore
                                    (link_ignore
                                       (of_transition ~f:(to_fun [SAVE]) Epsilon)
-                                      (of_top_expr (level+1) expr))
+                                      (of_top_expr greed (level+1) expr))
                                    (of_transition ~f:(to_fun [RESTORECUR]) Epsilon)
   | Negative_look_ahead expr  -> of_transition ~f:(to_fun [SAVE;
-                                                           AUTOMATON (of_top_expr (level+1) expr);
+                                                           AUTOMATON (of_top_expr greed (level+1)
+                                                                                  expr);
                                                            CHECK; NOT; ASSERT; RESTORE]) Epsilon
   | Look_behind expr          -> of_transition
                                    ~f:(to_fun [SAVE; REVERSE;
-                                               AUTOMATON (reverse (of_top_expr (level+1) expr));
+                                               AUTOMATON (reverse (of_top_expr greed (level+1)
+                                                                               expr));
                                                CHECK; ASSERT; RESTORESTATE]) Epsilon
   | Negative_look_behind expr -> of_transition
                                    ~f:(to_fun [SAVE; REVERSE;
-                                               AUTOMATON (reverse (of_top_expr (level+1) expr));
+                                               AUTOMATON (reverse (of_top_expr greed (level+1)
+                                                                               expr));
                                                CHECK; NOT; ASSERT; RESTORE]) Epsilon
-  | No_capture expr           -> of_top_expr (level+1) expr
+  | No_capture expr           -> of_top_expr greed (level+1) expr
   | Capture expr              -> let cid = !capture_id in capture_id := cid + 1;
                                  link_ignore
                                    (link_ignore
                                       (of_transition ~f:(to_fun [CURSOR]) Epsilon)
-                                      (of_top_expr (level+1) expr))
+                                      (of_top_expr greed (level+1) expr))
                                    (of_transition ~f:(to_fun [CURSOR; INT cid; CAPTURE]) Epsilon)
   | Back_ref id               -> of_transition ~f:(to_fun [INT (id-1); RECALL; CONSUME]) Epsilon
 
-and of_qual_quantifier level automaton = function
-  | Greedy q     -> with_greed (of_quantifier automaton q) level Automaton.Greedy
-  | Lazy q       -> with_greed (of_quantifier automaton q) level Automaton.Lazy
+and of_qual_quantifier greed level automaton = function
+  | Greedy q     -> let aut = of_quantifier automaton q in
+                    if greed then with_greed aut level Automaton.Greedy else aut
+  | Lazy q       -> let aut = of_quantifier automaton q in
+                    if greed then with_greed aut level Automaton.Lazy else aut
   | Possessive _ -> failwith "Unsupported feature: +"
 
 and of_quantifier automaton = function
-  | From_to (start, stop) when start = stop
-                          -> of_quantifier automaton (Exactly start)
-  | From_to (start, stop) when start > stop
-                          -> raise (Invalid_argument "The max should be greater than the min")
-  | From_to (start, stop) -> link_ignore
-                               (link_ignore
-                                  (repeat automaton start)
-                                  (repeat_bypass automaton (stop-start-1)))
-                               (bypass automaton)
+  | From_to (start, stop) -> from_to automaton start stop
   | From 0                -> loop automaton
   | From start            -> link_ignore
                                (repeat automaton (start-1))
                                (chain automaton)
   | Exactly n             -> repeat automaton n
 
-let check expr = capture_id := 0; check (of_top_expr 0 expr)
+let check expr = capture_id := 0; check (of_top_expr false 0 expr)
 
 let match_one expr buffer =
   capture_id := 0;
-  let (rstate, data) = Option.get (match_one (of_top_expr 0 expr) buffer) in
-  Util.string_of_chars (Util.slice rstate.buffer rstate.start rstate.cursor)::data.captures
+  match match_one (of_top_expr true 0 expr) buffer with
+  | Some (rstate, data) -> Some (Util.string_of_chars
+                                   (Util.slice rstate.buffer rstate.start rstate.cursor)::
+                                 data.captures)
+  | None                -> None
 
 let find_first_matching exprs buffer =
   let rec find_first_matching_rec id = function
-    | hd::tl -> let automaton = of_top_expr 1 hd in
-                compose_states automaton (final_of automaton)
+    | hd::tl -> let automaton = of_top_expr false 1 hd in
+                compose_states automaton (final automaton)
                                (fun (rstate, data) -> (rstate,
                                                        { data with stack = Int id::data.stack }))::
                 find_first_matching_rec (id+1) tl

@@ -35,18 +35,19 @@ and Regex_automaton : sig
              t * (int, int) Hashtbl.t
   val link_ignore : ?state:int list -> ?state':int list -> ?keep_final:bool -> t -> t -> t
   val repeat : t -> ?initial:int list -> ?final:int list -> int -> t
-  val repeat_bypass : t -> ?initial:int list -> ?final:int list -> ?f:(runtime_state ->
-                      runtime_state) -> int -> t
+  val from_to : t -> ?initial:int list -> ?final:int list -> int -> int -> t
   val chain : ?initial:int list -> ?final:int list -> t -> t
-  val bypass : t -> t
+  val bypass : ?initial:int list -> t -> t
   val loop : ?initial:int list -> ?final:int list -> t -> t
-  val check_with : t -> runtime_state list * runtime_state list -> runtime_state option
+  val check_with : t -> runtime_state list -> runtime_state option
   val check : t -> buffer -> bool
   val reverse : t -> t
   val match_one : t -> buffer -> runtime_state option
   val match_first : t -> buffer -> runtime_state option
   val with_greed : t -> int -> Automaton.greed -> t
-  val final_of : t -> int list
+  val final : t -> int list
+  val order : t -> int
+  val size : t -> int
 end = Automaton.Make (Char_range) (Regex_bistack)
 
 open Regex_bistack
@@ -70,7 +71,7 @@ let to_fun instructions =
       | AUTOMATON a, _         -> push (Automaton a) (gstate, data)
       | CURSOR, _              -> push (Int gstate.cursor) (gstate, data)
       | CHECK, Automaton a::tl -> (match Regex_automaton.check_with
-                                           a ([({ gstate with id = 0 }, data)], []) with
+                                           a [({ gstate with id = 0 }, data)] with
                                    | Some (_, data) -> push (Bool true) (gstate, { data with stack = tl })
                                    | None           -> push (Bool false) (gstate, { data with stack = tl }))
       | CHECK, _               -> failwith "CHECK requires an Automaton"

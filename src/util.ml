@@ -41,3 +41,5 @@ let set_nth_safe l n e e' =
 let slice l start stop = (take (drop l start) (stop-start))
 
 let (@@) f f' = fun x -> f (f' x)
+
+let rec (--) i j = if i > j then [] else i::((i+1)--j)

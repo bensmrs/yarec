@@ -1,0 +1,9 @@
+(library
+ (name yarec)
+ (modules Drange Stacklang Automaton Codegen Lexer Parser Exceptions Flags Location Types Util Regex))
+
+(ocamllex lexer)
+
+(menhir
+ (modules parser)
+ (flags --explain))

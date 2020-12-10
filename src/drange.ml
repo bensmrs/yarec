@@ -64,7 +64,7 @@ module Make (E : sig
   let of_list l =
     simplify (List.partition (function Single _ -> false | _ -> true) (List.sort sort l))
 
-  let add_list (r, s) l = of_list [r; s; l]
+  let add_list (r, s) l = of_list (r@s@l)
 
   let add (r, s) (r', s') = of_list (r@r'@s@s')
 

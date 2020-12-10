@@ -9,6 +9,19 @@ type step = { greed: greed;
               depth: int }
 type 'a transition = Consume of 'a | Epsilon | Eta
 
+exception Illegal_link
+
+module Nothing = struct
+  type t = unit
+  let empty = ()
+end
+
+module Int_element = struct
+  type t = int
+  type elt = t
+  let mem = (=)
+end
+
 module Make (E : sig
                    type elt
                    type t
@@ -42,9 +55,6 @@ module Make (E : sig
 
   let next_available_state automaton = List.length automaton.states
 
-  let id_of_state (i, _) = i
-  let transformation_of_state (_, t) = t
-
   let add_state ?(f=fun x->x) ?(initial=false) ?(final=false) automaton =
     let id = next_available_state automaton in
     ({ initial = (if initial then id::automaton.initial else automaton.initial);
@@ -72,6 +82,14 @@ module Make (E : sig
     { automaton with final = Int_set.elements (Int_set.union (Int_set.of_list automaton.final)
                                                              (Int_set.of_list final)) }
 
+  let remove_initial automaton initial =
+    { automaton with initial = Int_set.elements (Int_set.diff (Int_set.of_list automaton.initial)
+                                                              (Int_set.of_list initial)) }
+
+  let add_initial automaton initial =
+    { automaton with initial = Int_set.elements (Int_set.union (Int_set.of_list automaton.initial)
+                                                               (Int_set.of_list initial)) }
+
   let compose_states automaton states f =
     { automaton with states = List.fold_left (fun states id ->
                                                 set_nth states id (f @@ (List.nth states id)))
@@ -80,6 +98,7 @@ module Make (E : sig
   let link ?(state=[]) ?(state'=[]) ?(keep_final=false) automaton automaton' =
     let state = List.sort compare (if state = [] then automaton.final else state) in
     let state' = List.sort compare (if state' = [] then automaton'.initial else state') in
+    if List.length state' > 1 then raise Illegal_link else
     let trans = Hashtbl.create (next_available_state automaton') in
     ignore (List.map (fun s -> List.map (fun s' -> Hashtbl.add trans s' s) state') state);
     let rec merge_states automaton ?(n=0) = function
@@ -135,7 +154,9 @@ module Make (E : sig
     List.fold_left (fun a f -> List.fold_left (fun a' (t, i) -> add_transition a' f i t)
                                               a initial_transitions) automaton final
 
-  let bypass automaton = add_final automaton automaton.initial
+  let bypass ?(initial=[]) automaton =
+    let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
+    add_final automaton initial
 
   let repeat_bypass automaton ?(initial=[]) ?(final=[]) ?(f=fun x -> x) n =
     let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
@@ -155,6 +176,15 @@ module Make (E : sig
                                                          [] final) (n-1) in
     add_final (repeat_bypass_in acc final n) [id]
 
+  let from_to automaton ?(initial=[]) ?(final=[]) start stop = match start, stop with
+    | start, stop when start = stop -> repeat automaton start
+    | start, stop when start > stop -> raise (Invalid_argument "start > stop")
+    | start, stop                   -> link_ignore
+                                         (link_ignore (repeat automaton ~initial ~final start)
+                                                      (repeat_bypass ~initial ~final automaton
+                                                                     (stop-start-1)))
+                                         (bypass ~initial automaton)
+
   let loop ?(initial=[]) ?(final=[]) automaton =
     let initial = List.sort compare (if initial = [] then automaton.initial else initial) in
     let final = List.sort compare (if final = [] then automaton.final else final) in
@@ -162,16 +192,9 @@ module Make (E : sig
     let (automaton, id) = add_state automaton in
     { (List.fold_left (fun a i -> add_transition a id i Epsilon) automaton initial) with initial = [id] }
 
-  let add_state_from ?(f=fun x -> x) automaton state item =
-    let (automaton, id) = add_state ~f automaton in
-    (add_transition automaton state id item, id)
-
-  let rec add_states_from ?(f=[]) automaton state items = match f, items with
-    | _, []            -> (automaton, state)
-    | [], hd::tl       -> let (automaton, state) = add_state_from automaton state hd in
-                          add_states_from automaton state tl
-    | hd::tl, hd'::tl' -> let (automaton, state) = add_state_from ~f:hd automaton state hd' in
-                          add_states_from ~f:tl automaton state tl'
+  let rec safe_map f = function
+    | hd::tl -> (try f hd::safe_map f tl with _ -> safe_map f tl)
+    | []     -> []
 
   let next automaton (gstate, data) =
     let rec find_reachable = function
@@ -182,22 +205,20 @@ module Make (E : sig
                               then find_reachable tl
                               else (s, gstate.cursor+1, true)::find_reachable tl
       | []                 -> [] in
-    let rec list_apply f = function
-      | hd::tl -> (try f hd::list_apply f tl with _ -> list_apply f tl)
-      | []     -> [] in
     let rec update_steps id = function
       | { stop = None; start_state = None; _ } as s::tl
                                      -> { s with start_state = Some id }::(update_steps id tl)
       | { start_state = None; _ }::_ -> failwith "Corrupt stack"
       | hd::tl                       -> hd::(update_steps id tl)
       | []                           -> [] in
-    let transitions = List.nth automaton.transitions gstate.id in
-    list_apply (fun (id, cursor, update) ->
-                  (List.nth automaton.states id)
-                  ({ gstate with id; cursor; steps = let (s, s') = gstate.steps in
-                                                     if update then (s, update_steps id s')
-                                                               else (s, s') }, data))
-               (find_reachable transitions)
+    let transitions = if gstate.id = -1 then (List.map (fun id -> (Epsilon, id)) automaton.initial)
+                                        else (List.nth automaton.transitions gstate.id) in
+    safe_map (fun (id, cursor, update) ->
+                (List.nth automaton.states id)
+                ({ gstate with id; cursor; steps = let (s, s') = gstate.steps in
+                                                   if update then (s, update_steps id s')
+                                                             else (s, s') }, data))
+             (find_reachable transitions)
 
   let rec next_of_list automaton = function
     | hd::tl -> List.rev_append (next automaton hd) (next_of_list automaton tl)
@@ -210,22 +231,19 @@ module Make (E : sig
     let next_rstates = next_of_list automaton rstates in
     (next_rstates, List.filter (fun (gstate, _) -> is_final automaton gstate.id) next_rstates)
 
-  let rec check_with automaton (rstates, rstates') =
-    let rstates = List.sort_uniq compare rstates in
-    match rstates, rstates' with
-    | _::_, [] -> check_with automaton (step automaton rstates)
-    | [], []   -> None
-    | _, hd::_ -> Some hd
+  let check_with automaton rstates =
+    let rec check_with_rec (rstates, rstates') =
+      let rstates = List.sort_uniq compare rstates in
+      match rstates, rstates' with
+      | _::_, [] -> check_with_rec (step automaton rstates)
+      | [], []   -> None
+      | _, hd::_ -> Some hd in
+    check_with_rec (rstates, [])
 
   let rec match_first_rec automaton ?(cursor=0) buffer (rstates_acc, rstates_acc') =
-    let rstates = if cursor > List.length buffer
-                  then []
-                  else List.map (fun id -> (List.nth automaton.states id)
-                                              ({ id; buffer; start = cursor; cursor;
-                                                 steps = ([], []) },
-                                               Data.empty ))
-                                automaton.initial in
-    let rstates = List.sort_uniq compare (List.rev_append rstates rstates_acc) in
+    let new_rstate = ({ id = -1; buffer; start = cursor; cursor; steps = ([], []) }, Data.empty) in
+    let rstates = List.sort_uniq compare (if cursor > List.length buffer
+                                          then rstates_acc else (new_rstate::rstates_acc)) in
     match rstates, rstates_acc' with
     | _::_, [] -> match_first_rec automaton ~cursor:(cursor+1) buffer (step automaton rstates)
     | [], []   -> None
@@ -235,8 +253,7 @@ module Make (E : sig
     match_first_rec automaton ~cursor:0 buffer ([], [])
 
   let check automaton buffer =
-    if is_final automaton 0 then true else
-    match match_first_rec automaton ~cursor:0 buffer ([], []) with
+    match match_first automaton buffer with
       | Some _ -> true
       | None   -> false
 
@@ -302,14 +319,9 @@ module Make (E : sig
                              | None   -> eliminate_current (hd::acc) (tl, (hd'::tl')))
       | [], _::tl        -> eliminate_current [] (acc, tl)
       | l, []            -> l in
-    let rstates = if cursor > List.length buffer
-                  then []
-                  else List.map (fun id -> (List.nth automaton.states id)
-                                              ({ id; buffer; start = cursor; cursor;
-                                                 steps = ([], []) },
-                                               Data.empty ))
-                                automaton.initial in
-    let rstates = List.sort_uniq compare (List.rev_append rstates rstates_acc) in
+    let new_rstate = ({ id = -1; buffer; start = cursor; cursor; steps = ([], []) }, Data.empty) in
+    let rstates = List.sort_uniq compare (if cursor > List.length buffer
+                                          then rstates_acc else (new_rstate::rstates_acc)) in
     let found = eliminate_found [] rstates_acc' in
     let current = eliminate_current [] (rstates, found) in
     match current, found with
@@ -360,6 +372,27 @@ module Make (E : sig
                     automaton)
       (of_transition ~f:close_marker Eta)
 
-  let final_of automaton = automaton.final
+  let initial automaton = automaton.initial
+  let final automaton = automaton.final
+
+  let order automaton = List.length automaton.states
+  let size automaton = List.fold_left (fun i t -> i + List.length t) 0 automaton.transitions
+
+  let assert_start ((gstate, _) as r) = assert (gstate.cursor = 0); r
+  let assert_end ((gstate, _) as r) = assert (gstate.cursor = (List.length gstate.buffer)); r
+
+  let restrict automaton =
+    link_ignore (link_ignore (single ~f:assert_start ()) automaton) (single ~f:assert_end ())
+
+  let restrict' automaton =
+    link_ignore (link_ignore (of_transition ~f:assert_start Epsilon) automaton)
+                (of_transition ~f:assert_end Epsilon)
 
 end
+
+
+module Make_simple (E : sig
+                          type elt
+                          type t
+                          val mem : elt -> t -> bool
+                        end) = Make (E) (Nothing)
